@@ -3,6 +3,7 @@
 mod sidecar;
 mod hardware;
 mod download_manager;
+mod exporter;
 mod multimodal;
 mod function_calling;
 mod templates_db;
@@ -14,6 +15,7 @@ use tauri::{Emitter, Manager, State};
 use sidecar::{RunningSidecar, SidecarState, SidecarStatus};
 use hardware::{HardwareInfo, ModelRecommendation};
 use download_manager::DownloadState;
+use exporter::{ExportRequest, ExportResult};
 use multimodal::MultimodalChatState;
 use templates_db::TemplateDb;
 use templates_db::{template_init, template_list, template_get_by_id};
@@ -270,6 +272,14 @@ fn merge_template(
     merge(&template, &vars).map_err(|e| e.to_string())
 }
 
+/// Export editor HTML to a local corporate document format.
+#[tauri::command]
+async fn export_document(request: ExportRequest) -> Result<ExportResult, String> {
+    exporter::export_document(request)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -304,6 +314,7 @@ pub fn run() {
             template_list,
             template_get_by_id,
             merge_template,
+            export_document,
         ])
         .setup(|app| {
             // Auto-start sidecar in background thread (non-blocking)
