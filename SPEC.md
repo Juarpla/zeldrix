@@ -1,220 +1,60 @@
-# SPEC.md — Download Orchestrator con Verificación SHA-256 y Hot-Swap
+# Local AI Workstation - Product Vision Specification
 
-## 1. Concepto y Visión
+Excellent decision! Turning any company PC into an internet-independent Local AI Workstation is a powerful value proposition, especially for sectors with sensitive data (legal, finance, health, human resources).
 
-Un gestor de descargas seguro y resistente que permite a los usuarios descargar cualquiera de los 8 modelos opcionales de Unsloth directamente desde Hugging Face. El sistema proporciona transparencia total mediante actualizaciones de progreso en tiempo real, validación criptográfica del archivo descargado, y la capacidad de cambiar modelos "en caliente" sin interrumpir la aplicación. La experiencia debe sentirse profesional y confiable — como un gestor de actualizaciones de un software de producción.
+For the application to be indispensable in daily corporate life, it must go beyond a simple AI chat. It must become the "operating system" for the company's office tasks.
 
-## 2. Diseño Técnico
+Here are the key functions your software should perform to completely transform local workflows:
 
-### 2.1 Modelos Disponibles (Unsloth)
+## 1. The Intelligent Corporate Document Editor
 
-| ID | Nombre | Tipo | VRAM | Params |
-|----|--------|------|------|--------|
-| gemma-4-E2B-it-IQ4_XS | Gemma 3 4B IT Q4_XS | Chat | ~4GB | 4B |
-| llama-4-E2B-it-IQ4_M | Llama 4 Scout Q4_M | Chat | ~8GB | 17B |
-| mistral-4-E2B-it-IQ4_M | Mistral Small 3.1 Q4_M | Chat | ~8GB | 22B |
-| qwen-4-E2B-it-IQ4_M | Qwen 3.5 Q4_M | Chat | ~8GB | 32B |
-| deepseek-4-E2B-it-IQ4_M | Deepseek Chat Q4_M | Chat | ~8GB | 32B |
-| phi-4-E2B-it-IQ4_M | Phi-4 Q4_M | Chat | ~8GB | 14B |
-| nomic-4-E2B-it-IQ4_M | Nomic Embed Q4_M | Embedding | ~4GB | 7B |
-| excel-4-E2B-it-IQ4_M | Excel LLM Q4_M | Specialized | ~8GB | 14B |
+This is the star feature. It's not just about writing, but about automating company bureaucracy using smart templates.
 
-### 2.2 Estructura de Descarga
+*   **Advanced Template Generation:** The user uploads or selects a standard company template (a confidentiality agreement, a warning letter, a commercial quote, or a technical report) where the fixed variables are marked (e.g., `[Client_Name]`, `[Contract_Amount]`).
+*   **AI-Assisted Forms:** The user only fills in a couple of free-text fields or a quick summary of what they want ("Software services contract for company X, for 6 months, monthly payment of $2000, delivery at the end of each month"). The AI processes that structured summary with efficient models like Gemma-4 and fills in and integrates the legal or commercial template with impeccable and formal wording.
+*   **Inline AI Tools:** When selecting any text within the editor (Notion or Medium style), a floating menu appears to: Instantly translate, change to a formal/persuasive tone, correct spelling, or expand on a technical point.
 
-```
-~/.local/share/zeldrix/
-├── models/
-│   ├── gemma-4-E2B-it-IQ4_XS.gguf
-│   ├── llama-4-E2B-it-IQ4_M.gguf
-│   └── ...
-├── downloads/
-│   └── gemma-4-E2B-it-IQ4_XS.gguf.part (archivo en progreso)
-└── bin/
-    └── llama-server
-```
+## 2. The Corporate "Smart Search" (Local RAG)
 
-### 2.3 Endpoints de Descarga
+Companies waste hours searching for information in their own historical files. Your app can act as a local brain that knows everything about the company without uploading anything to the cloud.
 
-URL Base: `https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/`
+*   **Local Document Indexing:** The user drags an entire company folder (PDFs, Excels, Word, technical manuals). The application processes the files locally, extracts the text, and generates a knowledge base.
+*   **Audit and Semantic Query:** An accounting or legal employee can ask: "What were the penalty conditions in the contract we made with supplier X last year?". The app searches the indexed local documents and drafts the exact answer, citing the original document.
 
-- gemma-4-E2B-it-IQ4_XS.gguf
-- llama-4-E2B-it-IQ4_M.gguf
-- mistral-4-E2B-it-IQ4_M.gguf
-- qwen-4-E2B-it-IQ4_M.gguf
-- deepseek-4-E2B-it-IQ4_M.gguf
-- phi-4-E2B-it-IQ4_M.gguf
-- nomic-4-E2B-it-IQ4_M.gguf
-- excel-4-E2B-it-IQ4_M.gguf
+## 3. Automation of Repetitive Office Tasks
 
-## 3. Arquitectura del Backend (Rust)
+One-click actions to crush daily administrative work:
 
-### 3.1 Módulo `download_manager`
+*   **Executive Summary of Email Threads:** The user copies a long and chaotic thread of corporate emails, and the app cleanly generates three things: a summary of the situation, the agreements reached, and a list of pending tasks for each person.
+*   **Structured Data Extraction (Internal Data Scraping):** Imagine the administration department receives 50 invoices or CVs in PDF. They drag them into the app, and the AI reads the PDFs locally and automatically extracts the data (Name, ID/RUC, Amount, Date), exporting them directly to a clean Excel table.
 
-Nuevo módulo en `src-tauri/src/download_manager/`:
+## 4. Operating System Integrated Assistant
 
-```
-download_manager/
-├── mod.rs          # Estado global y comandos Tauri
-├── downloader.rs   # Lógica de descarga con streams
-├── hasher.rs       # Verificación SHA-256
-└── hot_swap.rs     # Gestión de procesos llama-server
-```
+For the PC to truly feel like an AI workstation, the assistant must be a keyboard shortcut away.
 
-### 3.2 Estado Global
+*   **Quick Access Bar (Spotlight/Raycast Style):** Pressing `Alt + Space` opens a minimalist bar anywhere in the operating system. From there, the user can dictate a quick command or request a translation without having to open the full application interface.
+*   **Lightweight Code Copilot Mode:** Useful if the company has a technical area or data analysts. The 35B Qwen model (in its ultra-quantized version) is fantastic for generating complex Excel macros, Python automation scripts, or local SQL queries for the company's database.
 
-```rust
-pub struct DownloadState(pub Mutex<Option<RunningDownload>>);
+## 5. Interactive Assistance
 
-pub struct RunningDownload {
-    pub model_id: String,
-    pub progress: DownloadProgress,
-    pub cancel_token: CancellationToken,
-}
+To provide a more seamless and contextual help, the assistant will have the following capabilities:
 
-#[derive(Clone, serde::Serialize)]
-pub struct DownloadProgress {
-    pub model_id: String,
-    pub bytes_downloaded: u64,
-    pub total_bytes: Option<u64>,
-    pub percentage: f64,
-    pub speed_bps: u64,
-    pub status: DownloadStatus,
-}
+*   **Voice Dictation and Commands:** The user can speak directly to the application to dictate content, issue commands, or ask questions. This allows for a hands-free and more natural interaction.
+*   **Screen Sharing for Contextual Help:** The user can choose to share their screen with the application. This will allow the AI to "see" what the user is doing and provide more accurate and relevant assistance, for example, by guiding them through a complex software or helping them fill out a form.
 
-#[derive(Clone, serde::Serialize)]
-pub enum DownloadStatus {
-    Pending,
-    Downloading,
-    Verifying,
-    Completed,
-    Failed { error: String },
-    Cancelled,
-}
-```
+## 6. The Hardware Control Panel (IT Admin View)
 
-### 3.3 Comandos Tauri
+Designed for the company's systems manager. They need to see that the software will not freeze the worker's computer.
 
-| Comando | Descripción |
-|---------|-------------|
-| `download_model(model_id)` | Inicia descarga de un modelo |
-| `cancel_download()` | Cancela la descarga en curso |
-| `get_download_progress()` | Retorna estado actual |
-| `hot_swap_model(model_id)` | Detiene llama-server y carga nuevo modelo |
-| `list_models()` | Lista modelos disponibles con estado |
+*   **Dynamic Layer Allocation (VRAM/RAM):** A very intuitive visual interface that allows configuring how much of the PC's power is assigned to the AI. If the secretary's PC has an entry-level video card, the system configures `llama.cpp` to use partial GPU acceleration (`-ngl`). If it is a basic office PC, it is optimized for low-priority background CPU threads so that the user can continue using Word or Chrome without slowness.
 
-### 3.4 Flujo de Descarga
+## Workstation Workflow Architecture
 
-1. **Inicio**: Validar que no haya descarga activa
-2. **Stream HTTP**: Usar `reqwest` con streaming para descarga chunked
-3. **Escritura chunks**: Escribir a `.part` file mientras se descarga
-4. **Progreso**: Calcular bytes/tiempo para velocidad, emit events cada segundo
-5. **Verificación**: Calcular SHA-256 del archivo final, comparar con hash conocido
-6. **Rename**: Si hash OK, renombrar `.part` → `.gguf`
-7. **Error**: Si hash falla, borrar archivo y notificar
-
-### 3.5 Eventos Tauri Emitidos
-
-| Evento | Payload | Frecuencia |
-|--------|---------|------------|
-| `download:progress` | `DownloadProgress` | Cada segundo |
-| `download:complete` | `{ model_id, path }` | Una vez |
-| `download:error` | `{ model_id, error }` | Una vez |
-| `download:cancelled` | `{ model_id }` | Una vez |
-
-### 3.6 Hot-Swap Logic
-
-```
-hot_swap_model(model_id):
-  1. Verificar que modelo existe en ~/.local/share/zeldrix/models/
-  2. Si sidecar corriendo:
-     a. Enviar evento "sidecar:stopping"
-     b. Matar proceso llama-server (graceful SIGTERM, luego SIGKILL)
-     c. Esperar a que puerto esté libre
-  3. Obtener nuevo binary_path y model_path
-  4. Iniciar nuevo llama-server con nuevo modelo
-  5. Enviar evento "sidecar:ready" con nuevo puerto
-```
-
-## 4. Frontend (React)
-
-### 4.1 Componentes
-
-```
-src/components/
-├── DownloadManager.tsx    # Contenedor principal
-├── ModelCard.tsx          # Tarjeta individual de modelo
-├── ProgressBar.tsx        # Barra de progreso animada
-└── DownloadEvents.tsx     # Handler de eventos
-```
-
-### 4.2 Modelo de Datos (TypeScript)
-
-```typescript
-interface ModelInfo {
-  id: string;
-  name: string;
-  type: 'chat' | 'embedding' | 'specialized';
-  vram: string;
-  params: string;
-  size_bytes?: number;
-  status: 'available' | 'downloading' | 'not_downloaded' | 'error';
-  download_progress?: number;
-}
-
-interface DownloadProgress {
-  model_id: string;
-  bytes_downloaded: number;
-  total_bytes: number | null;
-  percentage: number;
-  speed_bps: number;
-  status: 'pending' | 'downloading' | 'verifying' | 'completed' | 'failed' | 'cancelled';
-  error?: string;
-}
-```
-
-### 4.3 Interfaz Visual
-
-**Layout**: Grid de 2x4 con tarjetas de modelo
-**Cada tarjeta muestra**:
-- Nombre del modelo
-- Tipo y VRAM estimada
-- Estado (disponible/descargando/no descargado)
-- Botón de acción (Descargar / Cancelar / Usar)
-- Barra de progreso (solo durante descarga)
-
-**Estados de la tarjeta**:
-- `not_downloaded`: Botón "Descargar" activo
-- `downloading`: Barra de progreso animada + botón "Cancelar"
-- `available`: Badge "Descargado" + botón "Usar"
-- `error`: Mensaje de error + botón "Reintentar"
-
-## 5. Criterios de Aceptación
-
-1. ✅ Al iniciar descarga, el frontend recibe eventos `download:progress` cada segundo con porcentaje exacto
-2. ✅ El porcentaje se calcula como `(bytes_descargados / total_bytes) * 100`
-3. ✅ Si el hash SHA-256 no coincide, el archivo `.part` se borra automáticamente
-4. ✅ Se emite `download:error` con mensaje de hash inválido
-5. ✅ El hot-swap permite cambiar de modelo sin reiniciar la aplicación Tauri
-6. ✅ Solo puede haber una descarga activa a la vez
-7. ✅ La velocidad de descarga se calcula y muestra en MB/s
-
-## 6. Dependencias a Agregar (Cargo.toml)
-
-```toml
-# Download manager
-sha2 = "0.10"           # SHA-256 hashing
-tokio-util = { version = "0.7", features = ["io"] }  # Stream utilities
-futures = "0.3"         # Async utilities
-
-# Para cancel token
-tokio = { version = "1", features = ["sync"] }
-```
-
-## 7. Notas de Implementación
-
-- Usar `reqwest::get(url).await` con `.bytes_stream()` para streaming
-- Escribir chunks directamente a archivo con `tokio::fs::File`
-- Calcular hash con `sha2::{Sha256, Digest}` actualizando incrementally
-- Guardar estado de descarga en `State<DownloadState>` accesible por comandos
-- Los eventos se emiten via `app.emit()` hacia el frontend
-- Para hot-swap, el proceso de llama-server se maneja vía el `SidecarState` existente
+1.  **Ingestion and Selection:**
+    *   **Phase 1.** The user opens the application, selects the task ("Generate Meeting Minutes"), and chooses the company's pre-configured corporate template.
+2.  **Local Contextualization:**
+    *   **Phase 2.** The raw context is added (e.g., the locally transcribed audio or the quick block notes from the meeting).
+3.  **Inference in Llama.cpp:**
+    *   **Phase 3.** The Tauri command awakens the local model (Gemma or Qwen), passing the optimized hardware parameters of that specific PC.
+4.  **Aesthetic Rendering:**
+    *   **Phase 4.** The processed text is injected in real-time (streaming) directly into the web interface of the document editor, ready to be exported to PDF or Word with an impeccable design.

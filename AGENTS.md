@@ -23,6 +23,7 @@ Load it with: `skill: spec-driven-development`
 2. **Spec first, always.** Even for small changes, write the acceptance criteria before touching code.
 3. **Verify against the spec.** Run tests or manual checks to confirm every spec item passes.
 4. **Update the spec when scope changes.** The spec is a living document — if requirements shift, update the spec first, then the code.
+5. **Store specs in `specs/`.** Every spec file must be saved inside the `specs/` folder at the project root, using a descriptive filename (e.g., `specs/SPEC-ISSUE-09.md`, `specs/SPEC-FEATURE-NAME.md`). Never leave spec files scattered in the root directory.
 
 ### Exceptions
 
@@ -105,6 +106,22 @@ This covers:
 - OpenAI-compatible server setup
 - Context size configuration and batch processing
 - Performance optimization and benchmarks
+
+## Mandatory: rusqlite Guide for SQLite Database Work
+
+**When a prompt relates to SQLite databases using rusqlite — connection management, CRUD operations, transactions, full-text search (FTS5), migrations, or any database-specific code — you MUST load and follow the rusqlite-guide skill.**
+
+The skill is located at: `.agents/skills/rusqlite-guide/SKILL.md`
+
+Load it with: `skill: rusqlite-guide`
+
+This covers:
+- Connection initialization and configuration
+- CRUD operations and prepared statements
+- Transaction handling and savepoints
+- FTS5 full-text search integration
+- Database migrations
+- Error handling with `Result<T, E>`
 
 ## Project Context
 

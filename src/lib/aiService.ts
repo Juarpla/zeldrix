@@ -91,3 +91,184 @@ export async function getSidecarStatus(): Promise<{
     return { running: false };
   }
 }
+
+// ============================================================================
+// Entity Extraction for Document Templates
+// ============================================================================
+
+export interface ExtractedEntity {
+  variable: string;
+  value: string;
+  confidence: number; // 0-1
+}
+
+interface ExtractionRule {
+  patterns: RegExp[];
+  variable: string;
+  transform?: (match: string) => string;
+}
+
+/**
+ * Extract entities from free text based on required variables
+ * Uses pattern matching with confidence scores
+ */
+export async function extractEntities(
+  text: string,
+  requiredVariables: string[]
+): Promise<ExtractedEntity[]> {
+  // Try Tauri backend first
+  try {
+    const entities = await invoke<ExtractedEntity[]>("extract_entities", {
+      text,
+      variables: requiredVariables,
+    });
+    return entities;
+  } catch {
+    // Fall back to mock implementation
+    return mockExtractEntities(text, requiredVariables);
+  }
+}
+
+/**
+ * Mock implementation for entity extraction
+ * Demonstrates the feature when Tauri backend is not available
+ */
+function mockExtractEntities(
+  text: string,
+  requiredVariables: string[]
+): ExtractedEntity[] {
+  const entities: ExtractedEntity[] = [];
+  const normalizedText = text.toLowerCase();
+
+  // Extraction rules for common patterns
+  const rules: ExtractionRule[] = [
+    // Money patterns
+    {
+      patterns: [
+        /(\d+(?:\.\d{3})*(?:\s*(?:soles|dolares|euros|USD|EUR))?)/i,
+        /(?:monto|cantidad|importe|precio)[:\s]*(\d+(?:\.\d{3})*)/i,
+      ],
+      variable: "monto",
+      transform: (match) => match.replace(/[^\d.]/g, "") + " soles",
+    },
+    // Beneficiary patterns
+    {
+      patterns: [
+        /(?:a|en beneficio de|para)[\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
+        /(?:beneficiario|pagalo a|pagar a)[\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
+      ],
+      variable: "beneficiario",
+    },
+    // Date patterns
+    {
+      patterns: [
+        /(?:este|la)?[\s]*(fin de mes|mes|semana|año)/i,
+        /(?:para|el|fecha)[:\s]*(\d{1,2}[\s/-]\d{1,2}[\s/-]\d{2,4})/i,
+        /(?:fecha|cuando)[:\s]*([A-Z][a-z]+(?:\s+\d{1,2})?)/i,
+      ],
+      variable: "fecha",
+      transform: (match) => calculateDate(match),
+    },
+    // Company patterns
+    {
+      patterns: [
+        /(?:empresa|compañia|sociedad)[\s]+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*(?:\s+S\.?A\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L\.?)?)/i,
+      ],
+      variable: "empresa",
+    },
+    // Service patterns
+    {
+      patterns: [
+        /(?:servicio de|por|concepto)[:\s]*([A-Z][a-z]+(?:\s+[a-z]+)*)/i,
+      ],
+      variable: "servicio",
+    },
+    // Description patterns
+    {
+      patterns: [
+        /(?:descripcion|detalle|observacion)[:\s]*(.+?)(?:\.|$)/i,
+      ],
+      variable: "descripcion",
+    },
+  ];
+
+  // Process each required variable
+  for (const variable of requiredVariables) {
+    const normalizedVar = variable.toLowerCase();
+    const matchingRule = rules.find((rule) =>
+      rule.variable.toLowerCase() === normalizedVar ||
+      normalizedVar.includes(rule.variable.toLowerCase())
+    );
+
+    if (matchingRule) {
+      for (const pattern of matchingRule.patterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          let value = match[1].trim();
+          if (matchingRule.transform) {
+            value = matchingRule.transform(value);
+          }
+          entities.push({
+            variable,
+            value,
+            confidence: 0.85,
+          });
+          break;
+        }
+      }
+    }
+
+    // Try fuzzy matching for name variables
+    if (!entities.find((e) => e.variable === variable)) {
+      if (normalizedVar.includes("nombre")) {
+        const nameMatch = text.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})/);
+        if (nameMatch) {
+          entities.push({
+            variable,
+            value: nameMatch[1],
+            confidence: 0.8,
+          });
+        }
+      }
+    }
+  }
+
+  return entities;
+}
+
+/**
+ * Calculate date from relative expressions
+ */
+function calculateDate(relativeDate: string): string {
+  const now = new Date();
+  const normalized = relativeDate.toLowerCase();
+
+  if (normalized.includes("fin de mes")) {
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return lastDay.toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  if (normalized.includes("semana")) {
+    const nextWeek = new Date(now);
+    nextWeek.setDate(now.getDate() + 7);
+    return nextWeek.toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  if (normalized.includes("mes")) {
+    return now.toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  return relativeDate;
+}

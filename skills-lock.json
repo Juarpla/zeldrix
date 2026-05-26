@@ -13,6 +13,12 @@
       "skillPath": "skills/next-best-practices/SKILL.md",
       "computedHash": "f4678aef4ffc10a5ea64a91e57abe5a5081af813b06d58d565caf3e8ef56e26c"
     },
+    "rusqlite-guide": {
+      "source": "daiki48/dotfiles",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/rusqlite-guide/SKILL.md",
+      "computedHash": "4fa302d0082abd2536138765c40d78db5d6856bdb90cc142a68f04e968bd01d3"
+    },
     "rust-best-practices": {
       "source": "apollographql/skills",
       "sourceType": "github",

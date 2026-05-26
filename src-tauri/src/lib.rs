@@ -5,6 +5,7 @@ mod hardware;
 mod download_manager;
 mod multimodal;
 mod function_calling;
+mod templates_db;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -13,6 +14,8 @@ use sidecar::{RunningSidecar, SidecarState, SidecarStatus};
 use hardware::{HardwareInfo, ModelRecommendation};
 use download_manager::DownloadState;
 use multimodal::MultimodalChatState;
+use templates_db::TemplateDb;
+use templates_db::{template_init, template_list, template_get_by_id};
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -262,6 +265,9 @@ pub fn run() {
         .manage(SidecarState(Mutex::new(None::<RunningSidecar>)))
         .manage(DownloadState(Mutex::new(None::<download_manager::RunningDownload>)))
         .manage(MultimodalChatState(Mutex::new(None::<multimodal::MultimodalSession>)))
+        .manage(TemplateDb(Mutex::new(
+            rusqlite::Connection::open_in_memory().expect("failed to open templates db"),
+        )))
         .invoke_handler(tauri::generate_handler![
             sidecar_start,
             sidecar_stop,
@@ -279,6 +285,9 @@ pub fn run() {
             multimodal::encode_image_base64,
             multimodal::encode_audio_base64,
             ai_transform_text,
+            template_init,
+            template_list,
+            template_get_by_id,
         ])
         .setup(|app| {
             // Auto-start sidecar in background thread (non-blocking)

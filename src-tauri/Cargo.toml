@@ -43,6 +43,9 @@ futures = "0.3"
 # Multimodal encoding
 base64 = "0.22"
 
+# Templates database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
 # Function calling & web search
 scraper = "0.21"
 regex = "1"
