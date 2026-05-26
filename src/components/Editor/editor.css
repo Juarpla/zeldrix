@@ -289,3 +289,49 @@
     font-size: 1.25rem;
   }
 }
+
+/* AI Active Inference Shimmer Styles (Satin Gray/Blue) */
+@keyframes ai-shimmer-glow {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.ai-shimmer-active {
+  background: linear-gradient(
+    90deg,
+    rgba(219, 234, 254, 0.4) 0%,
+    rgba(191, 219, 254, 0.7) 25%,
+    rgba(226, 232, 240, 0.6) 50%,
+    rgba(191, 219, 254, 0.7) 75%,
+    rgba(219, 234, 254, 0.4) 100%
+  );
+  background-size: 200% 100%;
+  animation: ai-shimmer-glow 2s infinite linear;
+  border-radius: 4px;
+  padding: 1px 2px;
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.15);
+  border-bottom: 1.5px dashed rgba(59, 130, 246, 0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: inherit;
+  display: inline;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ai-shimmer-active {
+    background: linear-gradient(
+      90deg,
+      rgba(30, 41, 59, 0.4) 0%,
+      rgba(51, 65, 85, 0.7) 25%,
+      rgba(30, 41, 59, 0.6) 50%,
+      rgba(51, 65, 85, 0.7) 75%,
+      rgba(30, 41, 59, 0.4) 100%
+    );
+    background-size: 200% 100%;
+    box-shadow: 0 0 6px rgba(96, 165, 250, 0.2);
+    border-bottom: 1.5px dashed rgba(96, 165, 250, 0.5);
+  }
+}

@@ -116,7 +116,7 @@ Dirección`,
   },
 ];
 
-let useMockData = true;
+let useMockData = false;
 
 export async function getTemplates(): Promise<Template[]> {
   if (useMockData) {
@@ -126,7 +126,17 @@ export async function getTemplates(): Promise<Template[]> {
   }
 
   try {
-    return await invoke<Template[]>("template_list");
+    let list = await invoke<Template[]>("template_list");
+    if (list.length === 0) {
+      console.log("Database is empty, initializing and seeding...");
+      try {
+        await invoke("template_init");
+        list = await invoke<Template[]>("template_list");
+      } catch (initErr) {
+        console.error("Failed to initialize database:", initErr);
+      }
+    }
+    return list;
   } catch (e) {
     console.warn("Tauri command 'template_list' not available, using mock data:", e);
     useMockData = true;
@@ -141,9 +151,34 @@ export async function getTemplateById(id: number): Promise<Template | null> {
   }
 
   try {
-    return await invoke<Template>("template_get", { id });
+    return await invoke<Template>("template_get_by_id", { id });
   } catch (e) {
-    console.warn("Tauri command 'template_get' not available, using mock data:", e);
+    console.warn("Tauri command 'template_get_by_id' not available, using mock data:", e);
     return MOCK_TEMPLATES.find((t) => t.id === id) || null;
+  }
+}
+
+export async function mergeTemplate(
+  template: string,
+  variables: Record<string, string>
+): Promise<string> {
+  if (useMockData) {
+    // Simple client-side fallback for mock data mode
+    let merged = template;
+    for (const [key, val] of Object.entries(variables)) {
+      merged = merged.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), val);
+    }
+    return merged;
+  }
+
+  try {
+    return await invoke<string>("merge_template", { template, variables });
+  } catch (e) {
+    console.warn("Tauri command 'merge_template' failed, falling back to client-side merge:", e);
+    let merged = template;
+    for (const [key, val] of Object.entries(variables)) {
+      merged = merged.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), val);
+    }
+    return merged;
   }
 }

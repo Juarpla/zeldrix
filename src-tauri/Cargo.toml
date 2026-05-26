@@ -50,4 +50,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 scraper = "0.21"
 regex = "1"
 urlencoding = "2"
+lazy_static = "1.4"
+
+# Merge engine
+thiserror = "1.0"
 

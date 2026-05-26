@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import TypographyEditor from "@/components/Editor/TypographyEditor";
 import { AIAbstractPanel } from "@/components/Editor/AIAbstractPanel";
-import { getTemplateById } from "@/lib/templates-service";
+import { getTemplateById, mergeTemplate } from "@/lib/templates-service";
 import type { Template } from "@/lib/types";
 
 function EditorContent() {
@@ -19,6 +19,8 @@ function EditorContent() {
   const [content, setContent] = useState("");
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   const [isAIPanelLoading, setIsAIPanelLoading] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [mergeSuccess, setMergeSuccess] = useState(false);
 
   // Load template if ID is provided
   useEffect(() => {
@@ -41,20 +43,21 @@ function EditorContent() {
     }
   }, [templateId]);
 
-  // Apply extracted values to document
+  // Apply extracted values to document using Rust Merge Engine
   const handleApplyToDocument = useCallback(
-    (values: Record<string, string>) => {
-      let newContent = content;
-
-      Object.entries(values).forEach(([variable, value]) => {
-        const placeholder = `{{${variable}}}`;
-        newContent = newContent.replace(
-          new RegExp(placeholder, "g"),
-          value
-        );
-      });
-
-      setContent(newContent);
+    async (values: Record<string, string>) => {
+      setMergeError(null);
+      setMergeSuccess(false);
+      try {
+        const merged = await mergeTemplate(content, values);
+        setContent(merged);
+        setMergeSuccess(true);
+        // Clear success message after 4 seconds
+        setTimeout(() => setMergeSuccess(false), 4000);
+      } catch (err: any) {
+        console.error("Merge engine failed:", err);
+        setMergeError(err?.message || String(err));
+      }
     },
     [content]
   );
@@ -159,6 +162,27 @@ function EditorContent() {
 
         {/* Editor Content */}
         <div className="flex-1 overflow-auto p-6">
+          {mergeError && (
+            <div className="max-w-3xl mx-auto mb-4 p-4 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span><strong>Error de combinación:</strong> {mergeError}</span>
+              </div>
+              <button onClick={() => setMergeError(null)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">
+                Descartar
+              </button>
+            </div>
+          )}
+          {mergeSuccess && (
+            <div className="max-w-3xl mx-auto mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <svg className="w-5 h-5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>¡Combinación exitosa! Todos los marcadores de posición fueron inyectados de forma segura mediante el motor de correspondencia.</span>
+            </div>
+          )}
           <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[600px]">
             {isLoadingTemplate ? (
               <div className="flex items-center justify-center h-64">

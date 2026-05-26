@@ -11,6 +11,7 @@ import { transformText, type AIActionType } from "@/lib/aiService";
 import "./editor.css";
 import "./toolbar.css";
 import AIActionsMenu from "./AIActionsMenu";
+import { AIShimmer } from "./AIShimmer";
 
 interface TypographyEditorProps {
   content?: string;
@@ -256,6 +257,7 @@ export default function TypographyEditor({
         },
       }),
       Document,
+      AIShimmer,
     ],
     content,
     editorProps: {
@@ -306,6 +308,11 @@ export default function TypographyEditor({
     async (action: AIActionType, selectedText: string) => {
       if (!editor) return;
 
+      const { from, to } = editor.state.selection;
+
+      // 1. Immediately apply the shimmer mark on the selection during loading
+      editor.chain().focus().setTextSelection({ from, to }).setMark("aiShimmer").run();
+
       setIsAILoading(true);
       setAiError(null);
 
@@ -313,28 +320,60 @@ export default function TypographyEditor({
         const response = await transformText(action, selectedText);
 
         if (response.success && response.result) {
-          // Get the current selection to know where to replace
-          const { from, to } = editor.state.selection;
+          // 2. Delete the selected text
+          editor.chain().focus().deleteRange({ from, to }).run();
 
-          // Replace the selected text with the AI result
-          editor
-            .chain()
-            .focus()
-            .deleteRange({ from, to })
-            .insertContentAt(from, response.result)
-            .run();
+          // 3. Simular renderizado progresivo de tokens (typewriter)
+          const resultText = response.result;
+          // Split by words/whitespace to stream as word tokens
+          const tokens = resultText.split(/(\s+)/);
+          let currentPos = from;
+          let tokenIndex = 0;
+
+          const streamInterval = setInterval(() => {
+            if (!editor) {
+              clearInterval(streamInterval);
+              setIsAILoading(false);
+              return;
+            }
+
+            if (tokenIndex < tokens.length) {
+              const token = tokens[tokenIndex];
+              if (token) {
+                // Insert token
+                editor.chain().insertContentAt(currentPos, token).run();
+                
+                // Keep the shimmer mark active on the inserted range so far
+                editor.chain().setTextSelection({ from, to: currentPos + token.length }).setMark("aiShimmer").run();
+                
+                currentPos += token.length;
+              }
+              tokenIndex++;
+            } else {
+              clearInterval(streamInterval);
+              // 4. Remove shimmer mark once the last token is rendered
+              editor.chain().focus().setTextSelection({ from, to: currentPos }).unsetMark("aiShimmer").run();
+              // Reset selection/cursor to the end
+              editor.chain().setTextSelection(currentPos).run();
+              setIsAILoading(false);
+            }
+          }, 35); // 35ms per word/whitespace token for a smooth visual effect
+
         } else if (response.error) {
+          // Remove shimmer mark on error
+          editor.chain().focus().setTextSelection({ from, to }).unsetMark("aiShimmer").run();
           setAiError(response.error);
-          // Auto-hide error after 3 seconds
+          setIsAILoading(false);
           setTimeout(() => setAiError(null), 3000);
         }
       } catch (error) {
+        // Remove shimmer mark on error
+        editor.chain().focus().setTextSelection({ from, to }).unsetMark("aiShimmer").run();
         const errorMessage =
           error instanceof Error ? error.message : "Error desconocido";
         setAiError(errorMessage);
-        setTimeout(() => setAiError(null), 3000);
-      } finally {
         setIsAILoading(false);
+        setTimeout(() => setAiError(null), 3000);
       }
     },
     [editor]

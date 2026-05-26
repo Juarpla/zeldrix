@@ -6,6 +6,7 @@ mod download_manager;
 mod multimodal;
 mod function_calling;
 mod templates_db;
+mod merge_engine;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -16,6 +17,7 @@ use download_manager::DownloadState;
 use multimodal::MultimodalChatState;
 use templates_db::TemplateDb;
 use templates_db::{template_init, template_list, template_get_by_id};
+use merge_engine::{merge, Variables};
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -250,9 +252,22 @@ async fn ai_transform_text(
         .and_then(|v| v.as_str())
     {
         Ok(content.to_string())
-    } else {
+} else {
         Err("No content in response".to_string())
+    }
 }
+
+/// Merge a template with provided variables.
+///
+/// Takes a template string with `{{variable}}` placeholders and a map of variable
+/// values, returns the merged document with all placeholders replaced.
+#[tauri::command]
+fn merge_template(
+    template: String,
+    variables: std::collections::HashMap<String, String>,
+) -> Result<String, String> {
+    let vars: Variables = variables.into();
+    merge(&template, &vars).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -288,6 +303,7 @@ pub fn run() {
             template_init,
             template_list,
             template_get_by_id,
+            merge_template,
         ])
         .setup(|app| {
             // Auto-start sidecar in background thread (non-blocking)
