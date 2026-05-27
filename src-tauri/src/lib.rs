@@ -11,6 +11,7 @@ pub mod merge_engine;
 mod document_history;
 mod document_ingestion;
 pub mod vector_db;
+mod retrieval_engine;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -33,6 +34,7 @@ use vector_db::{
     VectorDatabase,
     VectorDbState,
 };
+use retrieval_engine::retrieve_relevant_context;
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -338,6 +340,7 @@ pub fn run() {
             vector_db_search,
             vector_db_clear,
             vector_db_load,
+            retrieve_relevant_context,
         ])
         .setup(|app| {
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {
