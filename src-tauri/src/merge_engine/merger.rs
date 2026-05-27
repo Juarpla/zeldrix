@@ -24,7 +24,7 @@ use super::parser;
 /// # Examples
 ///
 /// ```
-/// use merge_engine::{merge, Variables};
+/// use zeldrix_lib::merge_engine::{merge, Variables};
 ///
 /// let template = "Hello {{name}}!";
 /// let mut vars = Variables::new();

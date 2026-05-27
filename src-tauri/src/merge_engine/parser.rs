@@ -23,7 +23,7 @@ pub mod re {
 /// # Examples
 ///
 /// ```
-/// use merge_engine::parser::extract_variables;
+/// use zeldrix_lib::merge_engine::extract_variables;
 ///
 /// let template = "Hello {{name}}, your order {{order_id}} is ready";
 /// let vars = extract_variables(template);

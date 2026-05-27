@@ -266,8 +266,8 @@ mod tests {
 
     #[test]
     fn test_truncate_snippet() {
-        let long_text = "This is a very long snippet that should be truncated because it exceeds the maximum character limit.";
-        let truncated = truncate_snippet(long_text);
+        let long_text = "This is a very long snippet ".repeat(20);
+        let truncated = truncate_snippet(&long_text);
         assert!(truncated.len() <= MAX_SNIPPET_CHARS + 3); // +3 for "..."
         assert!(truncated.ends_with("..."));
     }

@@ -7,8 +7,9 @@ mod exporter;
 mod multimodal;
 mod function_calling;
 mod templates_db;
-mod merge_engine;
+pub mod merge_engine;
 mod document_history;
+mod document_ingestion;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -22,6 +23,7 @@ use templates_db::TemplateDb;
 use templates_db::{template_init, template_list, template_get_by_id};
 use merge_engine::{merge, Variables};
 use document_history::{document_version_list, document_version_save};
+use document_ingestion::extract_document_text;
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -319,6 +321,7 @@ pub fn run() {
             export_document,
             document_version_save,
             document_version_list,
+            extract_document_text,
         ])
         .setup(|app| {
             // Auto-start sidecar in background thread (non-blocking)

@@ -28,6 +28,18 @@ export interface SaveDocumentVersionInput {
   new_content: string;
 }
 
+export type DocumentFormat = "pdf" | "docx" | "xlsx" | "plaintext";
+
+export interface ExtractedDocument {
+  path: string;
+  file_name: string;
+  format: DocumentFormat;
+  text: string;
+  char_count: number;
+  byte_count: number;
+  extraction_millis: number;
+}
+
 export type Category =
   | "Legal"
   | "Ventas"
