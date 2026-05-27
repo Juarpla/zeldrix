@@ -34,7 +34,7 @@ use vector_db::{
     VectorDatabase,
     VectorDbState,
 };
-use retrieval_engine::retrieve_relevant_context;
+use retrieval_engine::{retrieve_relevant_context, format_inference_prompt};
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -341,6 +341,7 @@ pub fn run() {
             vector_db_clear,
             vector_db_load,
             retrieve_relevant_context,
+            format_inference_prompt,
         ])
         .setup(|app| {
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {

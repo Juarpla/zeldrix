@@ -4,6 +4,13 @@ use tauri::State;
 use crate::sidecar::SidecarState;
 use crate::vector_db::VectorDbState;
 use crate::document_ingestion::embeddings::generate_embeddings;
+use crate::document_ingestion::TokenEstimator;
+
+pub mod prompt_packer;
+
+pub use prompt_packer::{
+    pack_context_prompt, estimate_string_tokens, PromptPackerConfig, PackedPrompt,
+};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RetrievalResult {
@@ -49,6 +56,23 @@ pub async fn retrieve_relevant_context(
         .collect();
         
     Ok(filtered_results)
+}
+
+#[tauri::command]
+pub fn format_inference_prompt(
+    query: String,
+    documents: Vec<RetrievalResult>,
+    max_tokens: usize,
+    estimator: Option<TokenEstimator>,
+    system_instruction: Option<String>,
+) -> Result<PackedPrompt, String> {
+    let estimator = estimator.unwrap_or(TokenEstimator::Heuristic);
+    let config = PromptPackerConfig {
+        max_tokens,
+        estimator,
+        system_instruction,
+    };
+    pack_context_prompt(&query, &documents, &config)
 }
 
 #[cfg(test)]
