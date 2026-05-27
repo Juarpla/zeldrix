@@ -10,6 +10,7 @@ mod templates_db;
 pub mod merge_engine;
 mod document_history;
 mod document_ingestion;
+pub mod vector_db;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -24,6 +25,14 @@ use templates_db::{template_init, template_list, template_get_by_id};
 use merge_engine::{merge, Variables};
 use document_history::{document_version_list, document_version_save};
 use document_ingestion::{extract_document_text, chunk_extracted_text, get_embeddings};
+use vector_db::{
+    vector_db_insert,
+    vector_db_search,
+    vector_db_clear,
+    vector_db_load,
+    VectorDatabase,
+    VectorDbState,
+};
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -325,8 +334,24 @@ pub fn run() {
             extract_document_text,
             chunk_extracted_text,
             get_embeddings,
+            vector_db_insert,
+            vector_db_search,
+            vector_db_clear,
+            vector_db_load,
         ])
         .setup(|app| {
+            let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {
+                std::env::current_dir().unwrap_or_default()
+            });
+            let db_path = local_data_dir.join("vector_db.json");
+            
+            let mut database = VectorDatabase::new(Some(db_path));
+            if let Err(error) = database.load() {
+                eprintln!("Failed to load vector database at startup: {}", error);
+            }
+            
+            app.manage(VectorDbState(std::sync::RwLock::new(database)));
+
             // Auto-start sidecar in background thread (non-blocking)
             let app_handle = app.handle().clone();
 
