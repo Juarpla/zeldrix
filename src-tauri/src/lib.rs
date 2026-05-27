@@ -23,7 +23,7 @@ use templates_db::TemplateDb;
 use templates_db::{template_init, template_list, template_get_by_id};
 use merge_engine::{merge, Variables};
 use document_history::{document_version_list, document_version_save};
-use document_ingestion::{extract_document_text, chunk_extracted_text};
+use document_ingestion::{extract_document_text, chunk_extracted_text, get_embeddings};
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -63,6 +63,7 @@ async fn sidecar_start(
         "-t", &threads_str,
         "--port", &port_str,
         "--host", "127.0.0.1",
+        "--embedding",
     ];
 
     // Add --mmproj if available
@@ -323,6 +324,7 @@ pub fn run() {
             document_version_list,
             extract_document_text,
             chunk_extracted_text,
+            get_embeddings,
         ])
         .setup(|app| {
             // Auto-start sidecar in background thread (non-blocking)
@@ -375,6 +377,7 @@ pub fn run() {
                     "-t", &threads_str,
                     "--port", &port_str,
                     "--host", "127.0.0.1",
+                    "--embedding",
                 ];
 
                 if let Some(ref mmproj) = mmproj_path {

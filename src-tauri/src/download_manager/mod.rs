@@ -508,6 +508,7 @@ pub async fn hot_swap_model(
         port.to_string(),
         "--host".to_string(),
         "127.0.0.1".to_string(),
+        "--embedding".to_string(),
     ];
 
     // Agregar --mmproj si existe

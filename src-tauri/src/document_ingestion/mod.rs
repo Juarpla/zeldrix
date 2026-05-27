@@ -1,6 +1,8 @@
 pub mod chunking;
+pub mod embeddings;
 
 pub use chunking::{chunk_text, Chunk, ChunkConfig, TokenEstimator};
+pub use embeddings::{generate_embeddings, get_embeddings};
 
 use calamine::{open_workbook_auto, Data, Reader};
 use quick_xml::events::Event;
