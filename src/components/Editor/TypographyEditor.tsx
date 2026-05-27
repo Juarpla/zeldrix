@@ -16,6 +16,11 @@ import { AIShimmer } from "./AIShimmer";
 interface TypographyEditorProps {
   content?: string;
   onChange?: (content: string) => void;
+  onAIChange?: (change: {
+    actionLabel: string;
+    previousContent: string;
+    newContent: string;
+  }) => void;
   onFocus?: () => void;
   onBlur?: () => void;
   placeholder?: string;
@@ -211,6 +216,7 @@ const Document = Extension.create({
 export default function TypographyEditor({
   content = "",
   onChange,
+  onAIChange,
   onFocus,
   onBlur,
   placeholder = "Escribe algo...",
@@ -276,6 +282,12 @@ export default function TypographyEditor({
     },
   });
 
+  useEffect(() => {
+    if (!editor || content === editor.getHTML()) return;
+
+    editor.commands.setContent(content, { emitUpdate: false });
+  }, [content, editor]);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     if (!editor) return;
@@ -309,6 +321,7 @@ export default function TypographyEditor({
       if (!editor) return;
 
       const { from, to } = editor.state.selection;
+      const previousContent = editor.getHTML();
 
       // 1. Immediately apply the shimmer mark on the selection during loading
       editor.chain().focus().setTextSelection({ from, to }).setMark("aiShimmer").run();
@@ -355,6 +368,11 @@ export default function TypographyEditor({
               editor.chain().focus().setTextSelection({ from, to: currentPos }).unsetMark("aiShimmer").run();
               // Reset selection/cursor to the end
               editor.chain().setTextSelection(currentPos).run();
+              onAIChange?.({
+                actionLabel: `IA: ${getAIActionLabel(action)}`,
+                previousContent,
+                newContent: editor.getHTML(),
+              });
               setIsAILoading(false);
             }
           }, 35); // 35ms per word/whitespace token for a smooth visual effect
@@ -376,7 +394,7 @@ export default function TypographyEditor({
         setTimeout(() => setAiError(null), 3000);
       }
     },
-    [editor]
+    [editor, onAIChange]
   );
 
   if (!editor) {
@@ -425,4 +443,19 @@ export default function TypographyEditor({
       </div>
     </div>
   );
+}
+
+function getAIActionLabel(action: AIActionType): string {
+  switch (action) {
+    case "formal":
+      return "Mas formal";
+    case "style":
+      return "Mejorar redaccion";
+    case "translate":
+      return "Traducir";
+    case "summarize":
+      return "Resumir";
+    default:
+      return "Cambio de texto";
+  }
 }

@@ -12,6 +12,22 @@ export interface CategoryGroup {
   templates: Template[];
 }
 
+export interface DocumentVersion {
+  id: string;
+  document_id: string;
+  created_at: string;
+  action_label: string;
+  previous_content: string;
+  new_content: string;
+}
+
+export interface SaveDocumentVersionInput {
+  document_id: string;
+  action_label: string;
+  previous_content: string;
+  new_content: string;
+}
+
 export type Category =
   | "Legal"
   | "Ventas"

@@ -1,12 +1,17 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import TypographyEditor from "@/components/Editor/TypographyEditor";
 import { AIAbstractPanel } from "@/components/Editor/AIAbstractPanel";
+import { VersionHistoryPanel } from "@/components/VersionHistory/VersionHistoryPanel";
 import { getTemplateById, mergeTemplate } from "@/lib/templates-service";
 import { exportDocumentAsPdf } from "@/lib/export-service";
-import type { Template } from "@/lib/types";
+import {
+  listDocumentVersions,
+  saveDocumentVersion,
+} from "@/lib/version-history-service";
+import type { DocumentVersion, Template } from "@/lib/types";
 
 function EditorContent() {
   const searchParams = useSearchParams();
@@ -25,6 +30,97 @@ function EditorContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportPath, setExportPath] = useState<string | null>(null);
+  const [versions, setVersions] = useState<DocumentVersion[]>([]);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [isRevertingVersion, setIsRevertingVersion] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const documentId = useMemo(
+    () => (templateId ? `template-${templateId}` : "freeform-editor"),
+    [templateId]
+  );
+
+  const refreshHistory = useCallback(async () => {
+    setIsHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const nextVersions = await listDocumentVersions(documentId);
+      setVersions(nextVersions);
+      setSelectedVersionId((current) => {
+        if (current && nextVersions.some((version) => version.id === current)) {
+          return current;
+        }
+        return nextVersions[0]?.id ?? null;
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "No se pudo cargar el historial.";
+      setHistoryError(String(message));
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, [documentId]);
+
+  const recordAIChange = useCallback(
+    async ({
+      actionLabel,
+      previousContent,
+      newContent,
+    }: {
+      actionLabel: string;
+      previousContent: string;
+      newContent: string;
+    }) => {
+      if (previousContent === newContent) return;
+
+      setHistoryError(null);
+      try {
+        const version = await saveDocumentVersion({
+          document_id: documentId,
+          action_label: actionLabel,
+          previous_content: previousContent,
+          new_content: newContent,
+        });
+        await refreshHistory();
+        setSelectedVersionId(version.id);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "No se pudo guardar el historial.";
+        setHistoryError(String(message));
+      }
+    },
+    [documentId, refreshHistory]
+  );
+
+  const handleRevertVersion = useCallback(
+    async (version: DocumentVersion) => {
+      setIsRevertingVersion(true);
+      setHistoryError(null);
+
+      const currentContent = content;
+      setContent(version.previous_content);
+
+      try {
+        const revertVersion = await saveDocumentVersion({
+          document_id: documentId,
+          action_label: `Reversion: ${version.action_label}`,
+          previous_content: currentContent,
+          new_content: version.previous_content,
+        });
+        await refreshHistory();
+        setSelectedVersionId(revertVersion.id);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "No se pudo registrar la reversion.";
+        setHistoryError(String(message));
+      } finally {
+        setIsRevertingVersion(false);
+      }
+    },
+    [content, documentId, refreshHistory]
+  );
 
   // Load template if ID is provided
   useEffect(() => {
@@ -47,6 +143,10 @@ function EditorContent() {
     }
   }, [templateId]);
 
+  useEffect(() => {
+    void refreshHistory();
+  }, [refreshHistory]);
+
   // Apply extracted values to document using Rust Merge Engine
   const handleApplyToDocument = useCallback(
     async (values: Record<string, string>) => {
@@ -54,6 +154,11 @@ function EditorContent() {
       setMergeSuccess(false);
       try {
         const merged = await mergeTemplate(content, values);
+        await recordAIChange({
+          actionLabel: "IA: aplicar variables de plantilla",
+          previousContent: content,
+          newContent: merged,
+        });
         setContent(merged);
         setMergeSuccess(true);
         // Clear success message after 4 seconds
@@ -63,7 +168,7 @@ function EditorContent() {
         setMergeError(err?.message || String(err));
       }
     },
-    [content]
+    [content, recordAIChange]
   );
 
   // Extract required variables from template
@@ -279,47 +384,68 @@ function EditorContent() {
               </button>
             </div>
           )}
-          <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[600px]">
-            {isLoadingTemplate ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="flex items-center gap-3">
-                  <svg
-                    className="animate-spin h-5 w-5 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  <span className="text-sm text-gray-500">
-                    Cargando plantilla...
-                  </span>
+          {historyError && (
+            <div className="max-w-6xl mx-auto mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <span>
+                <strong>Historial local:</strong> {historyError}
+              </span>
+              <button onClick={() => setHistoryError(null)} className="text-amber-600 hover:text-amber-800 text-xs font-semibold">
+                Descartar
+              </button>
+            </div>
+          )}
+          <div className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[600px]">
+              {isLoadingTemplate ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="flex items-center gap-3">
+                    <svg
+                      className="animate-spin h-5 w-5 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    <span className="text-sm text-gray-500">
+                      Cargando plantilla...
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <TypographyEditor
-                content={content}
-                onChange={setContent}
-                placeholder="Escribe tu documento aquí..."
-              />
-            )}
+              ) : (
+                <TypographyEditor
+                  content={content}
+                  onChange={setContent}
+                  onAIChange={recordAIChange}
+                  placeholder="Escribe tu documento aquí..."
+                />
+              )}
+            </div>
+            <VersionHistoryPanel
+              versions={versions}
+              selectedVersionId={selectedVersionId}
+              onSelectVersion={setSelectedVersionId}
+              onRevertVersion={handleRevertVersion}
+              isLoading={isHistoryLoading}
+              isReverting={isRevertingVersion}
+            />
           </div>
         </div>
 
         {/* Footer with template selection link */}
         <div className="bg-white border-t border-gray-200 px-6 py-3">
-          <div className="flex items-center justify-between max-w-3xl mx-auto">
+          <div className="flex items-center justify-between max-w-6xl mx-auto">
             <button
               onClick={() => router.push("/templates")}
               className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
