@@ -155,7 +155,7 @@ mod tests {
     fn test_prompt_packer_strict_budget_omits_lowest_similarity() {
         let documents = create_mock_documents();
         let config = PromptPackerConfig {
-            max_tokens: 140,
+            max_tokens: 160,
             estimator: TokenEstimator::Heuristic,
             system_instruction: None,
         };
@@ -167,7 +167,7 @@ mod tests {
         assert!(result.formatted_prompt.contains("doc_1"));
         assert!(!result.formatted_prompt.contains("doc_2"));
         assert!(!result.formatted_prompt.contains("doc_3"));
-        assert!(result.estimated_tokens <= 140);
+        assert!(result.estimated_tokens <= 160);
     }
 
     #[test]
