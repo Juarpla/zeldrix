@@ -23,7 +23,7 @@ use templates_db::TemplateDb;
 use templates_db::{template_init, template_list, template_get_by_id};
 use merge_engine::{merge, Variables};
 use document_history::{document_version_list, document_version_save};
-use document_ingestion::extract_document_text;
+use document_ingestion::{extract_document_text, chunk_extracted_text};
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -322,6 +322,7 @@ pub fn run() {
             document_version_save,
             document_version_list,
             extract_document_text,
+            chunk_extracted_text,
         ])
         .setup(|app| {
             // Auto-start sidecar in background thread (non-blocking)

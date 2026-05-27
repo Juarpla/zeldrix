@@ -1,3 +1,7 @@
+pub mod chunking;
+
+pub use chunking::{chunk_text, Chunk, ChunkConfig, TokenEstimator};
+
 use calamine::{open_workbook_auto, Data, Reader};
 use quick_xml::events::Event;
 use quick_xml::Reader as XmlReader;
@@ -256,6 +260,11 @@ fn trim_trailing_blank_lines(text: &str) -> String {
 pub fn extract_document_text(path: String) -> Result<ExtractedDocument, String> {
     let path = PathBuf::from(path);
     extract_text_from_path(&path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn chunk_extracted_text(text: String, config: ChunkConfig) -> Result<Vec<Chunk>, String> {
+    Ok(chunk_text(&text, &config))
 }
 
 #[cfg(test)]
