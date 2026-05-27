@@ -136,3 +136,7 @@ This covers:
 2. **Simplicity First** — Minimum code that solves the problem. No speculative features. No abstractions for single-use code.
 3. **Surgical Changes** — Touch only what you must. Match existing style. Remove orphans your changes create.
 4. **Goal-Driven Execution** — Define success criteria. Loop until verified. Transform tasks into verifiable goals.
+5. **Minimize Comments & Prefer Self-Documenting Code** — Avoid adding comments during code implementations unless strictly necessary. Instead, write highly descriptive and comprehensive names for functions, constants, and variables.
+6. **Modular & Readable Functions** — If a function's name cannot be made comprehensive or its logic is complex, split it into as many small, focused helper functions as possible so that any reviewer or reader can easily follow and understand.
+7. **English Only** — All source code, including function names, variable and constant identifiers, documentation, logs, and any strictly necessary comments, must be written in English only.
+
