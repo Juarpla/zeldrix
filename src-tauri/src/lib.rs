@@ -12,6 +12,9 @@ mod document_history;
 mod document_ingestion;
 pub mod vector_db;
 mod retrieval_engine;
+mod email_parser;
+
+use email_parser::clean_email_thread;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -367,6 +370,7 @@ pub fn run() {
             set_monitored_folder,
             get_sync_status,
             get_sync_queue,
+            clean_email_thread,
         ])
         .setup(|app| {
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {
