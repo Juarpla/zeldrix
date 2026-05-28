@@ -2,7 +2,7 @@ use crate::document_ingestion::TokenEstimator;
 use crate::retrieval_engine::RetrievalResult;
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_SYSTEM_INSTRUCTION: &str = 
+const DEFAULT_SYSTEM_INSTRUCTION: &str =
     "Eres un asistente corporativo inteligente de Zeldrix. Tu tarea es responder a la pregunta del usuario utilizando únicamente la información provista en los documentos de contexto a continuación.\n\
     Si la información provista no contiene la respuesta, debes responder indicando claramente que no posees suficiente información para responder. No inventes ni asumas información fuera del contexto.";
 

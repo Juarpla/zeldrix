@@ -22,6 +22,7 @@ export interface AutomationShortcut {
   steps: WorkflowStep[];
   inputs: AutomationInputField[];
   mockOutput: string;
+  isThinkingMode?: boolean;
 }
 
 export const AUTOMATIONS_DATA: AutomationShortcut[] = [
@@ -139,7 +140,8 @@ Sofía recuerda que hay que definir el presupuesto de publicidad del próximo Q.
       <td>Lunes</td>
     </tr>
   </tbody>
-</table>`
+</table>`,
+    isThinkingMode: true,
   },
   {
     id: "extract-pdf-table",

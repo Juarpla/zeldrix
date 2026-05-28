@@ -13,8 +13,12 @@ mod document_ingestion;
 pub mod vector_db;
 mod retrieval_engine;
 mod email_parser;
+mod thinking_mode;
+mod structured_extraction;
 
 use email_parser::clean_email_thread;
+use thinking_mode::ai_analyze_thinking_mode;
+use structured_extraction::extract_structured_table_json;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -371,6 +375,8 @@ pub fn run() {
             get_sync_status,
             get_sync_queue,
             clean_email_thread,
+            ai_analyze_thinking_mode,
+            extract_structured_table_json,
         ])
         .setup(|app| {
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {

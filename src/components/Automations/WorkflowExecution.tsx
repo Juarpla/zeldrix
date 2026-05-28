@@ -5,6 +5,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AutomationShortcut } from "@/lib/automations-data";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { invoke } from "@tauri-apps/api/core";
+
+interface ResponsibilityItem {
+  tarea: String;
+  responsable: String;
+  fecha_limite: String;
+}
+
+interface ThinkingModeResult {
+  thinking: string;
+  acuerdos: string[];
+  conflictos: string[];
+  matriz: ResponsibilityItem[];
+  full_response: string;
+}
 
 interface WorkflowExecutionProps {
   shortcut: AutomationShortcut;
@@ -30,18 +45,61 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Thinking Mode states
+  const [thinkingOutput, setThinkingOutput] = useState<ThinkingModeResult | null>(null);
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(true);
 
   const activeStep = shortcut.steps[currentStepIndex];
 
-  // Run mock workflow execution
-  const runWorkflow = () => {
-    setStatus("running");
-    setCurrentStepIndex(0);
-    setProgressPercent(0);
+  // Run mock workflow execution or trigger native Thinking Mode command
+  const runWorkflow = async () => {
+    setErrorMessage(null);
+    if (shortcut.isThinkingMode) {
+      setStatus("running");
+      setCurrentStepIndex(0);
+      setProgressPercent(10);
+      
+      const inputText = formInputs["meetingNotes"] || "";
+      try {
+        setCurrentStepIndex(1);
+        setProgressPercent(45);
+        
+        // Invoke real Tauri command
+        const result = await invoke<ThinkingModeResult>("ai_analyze_thinking_mode", {
+          text: inputText
+        });
+        
+        setCurrentStepIndex(2);
+        setProgressPercent(85);
+        
+        setThinkingOutput(result);
+        
+        setTimeout(() => {
+          setProgressPercent(100);
+          setStatus("completed");
+          if (onCompletedAction) onCompletedAction();
+        }, 500);
+
+      } catch (err: any) {
+        console.error("Thinking Mode call failed:", err);
+        setErrorMessage(
+          typeof err === "string" 
+            ? err 
+            : err.message || "Error al conectar con el servidor local llama.cpp. Verifica que esté iniciado."
+        );
+        setStatus("idle");
+      }
+    } else {
+      setStatus("running");
+      setCurrentStepIndex(0);
+      setProgressPercent(0);
+    }
   };
 
   useEffect(() => {
-    if (status !== "running") return;
+    if (status !== "running" || shortcut.isThinkingMode) return;
 
     const totalSteps = shortcut.steps.length;
     const totalDurationMs = shortcut.estimatedSeconds * 1000;
@@ -84,16 +142,16 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(shortcut.mockOutput.replace(/<[^>]*>/g, "")); // Copy stripped HTML text
+    const rawText = thinkingOutput 
+      ? thinkingOutput.full_response.replace(/<[^>]*>/g, "")
+      : shortcut.mockOutput.replace(/<[^>]*>/g, "");
+    navigator.clipboard.writeText(rawText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleOpenInEditor = () => {
-    // Redirect to /editor, passing the output content as query parameter
-    // The editor can read it and inject it!
-    const textOutput = shortcut.mockOutput;
-    // Compress or encode to avoid URL limits if too big, or use sessionStorage
+    const textOutput = thinkingOutput ? thinkingOutput.full_response : shortcut.mockOutput;
     if (typeof window !== "undefined") {
       sessionStorage.setItem("zeldrix_import_editor_text", textOutput);
     }
@@ -114,7 +172,7 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
           Volver al Hub
         </button>
         <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
-          <span>Automatización Activa: {shortcut.title}</span>
+          <span>{shortcut.isThinkingMode ? "🧠 Thinking Mode:" : "Automatización Activa:"} {shortcut.title}</span>
         </h2>
       </div>
 
@@ -132,6 +190,12 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                 Verifica o introduce los datos requeridos para ejecutar la automatización corporativa.
               </p>
             </div>
+
+            {errorMessage && (
+              <div className="p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-xl text-rose-700 dark:text-rose-400 text-xs font-semibold leading-relaxed">
+                ⚠️ {errorMessage}
+              </div>
+            )}
 
             {/* Render dynamic inputs */}
             <div className="space-y-4">
@@ -199,9 +263,9 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
               <Button
                 onClick={runWorkflow}
                 disabled={shortcut.inputs.some((i) => i.type === "file") && !selectedFile}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-xl"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold px-6 py-2 rounded-xl shadow-md transition-all active:scale-95"
               >
-                Disparar Automatización
+                {shortcut.isThinkingMode ? "Invocar Thinking Mode" : "Disparar Automatización"}
               </Button>
             </div>
           </motion.div>
@@ -219,12 +283,12 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                className="absolute inset-0 rounded-full border-4 border-gray-100 dark:border-gray-800 border-t-blue-600"
+                className="absolute inset-0 rounded-full border-4 border-gray-100 dark:border-gray-800 border-t-indigo-500"
               />
               <motion.div
                 animate={{ scale: [0.9, 1.1, 0.9] }}
                 transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                className="w-12 h-12 bg-blue-500/10 dark:bg-blue-500/5 rounded-full flex items-center justify-center text-blue-600"
+                className="w-12 h-12 bg-indigo-500/10 dark:bg-indigo-500/5 rounded-full flex items-center justify-center text-indigo-600"
               >
                 <svg className="w-6 h-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
@@ -233,9 +297,11 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
             </div>
 
             <div className="space-y-3 max-w-md">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Procesando Flujo de Trabajo Pesado...</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                {shortcut.isThinkingMode ? "Analizando en Thinking Mode..." : "Procesando Flujo de Trabajo Pesado..."}
+              </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                La Inteligencia Artificial está estructurando y analizando tus datos corporativos de manera autónoma.
+                La Inteligencia Artificial local está evaluando responsabilidades y trazando la cronología del proyecto.
               </p>
             </div>
 
@@ -243,13 +309,13 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
             <div className="w-full max-w-lg space-y-4">
               <div className="relative w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                 <motion.div
-                  className="absolute left-0 top-0 h-full bg-blue-600 rounded-full"
+                  className="absolute left-0 top-0 h-full bg-indigo-500 rounded-full"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
               <div className="flex justify-between text-xs font-bold text-gray-400">
                 <span>AVANCE: {progressPercent}%</span>
-                <span>T. RESTANTE: {Math.max(0, Math.ceil(shortcut.estimatedSeconds * (1 - progressPercent / 100)))}s</span>
+                <span>PROCESANDO...</span>
               </div>
 
               {/* Progress Steps list */}
@@ -264,7 +330,7 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                         isDone
                           ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900 text-emerald-900 dark:text-emerald-300"
                           : isActive
-                          ? "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900 text-blue-900 dark:text-blue-300 animate-pulse"
+                          ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-900 text-indigo-900 dark:text-indigo-300 animate-pulse"
                           : "bg-gray-50/50 dark:bg-gray-950 border-gray-100 dark:border-gray-850 text-gray-400"
                       }`}
                     >
@@ -273,7 +339,7 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                           isDone
                             ? "bg-emerald-500 text-white"
                             : isActive
-                            ? "bg-blue-500 text-white"
+                            ? "bg-indigo-500 text-white"
                             : "bg-gray-300 dark:bg-gray-700 text-white"
                         }`}>
                           {isDone ? "✓" : idx + 1}
@@ -303,9 +369,9 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                   ✓
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-emerald-900 dark:text-emerald-300">¡Procesamiento Completado de Forma Exitosa!</h4>
+                  <h4 className="font-extrabold text-emerald-900 dark:text-emerald-300">¡Pensamiento Completo y Minuta Estructurada!</h4>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                    El resultado fue estructurado mediante los filtros de correspondencia de manera estructurada.
+                    Las responsabilidades implícitas fueron extraídas exitosamente.
                   </p>
                 </div>
               </div>
@@ -319,9 +385,45 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
               </Button>
             </div>
 
+            {/* Expandable Thinking Process Pane */}
+            {thinkingOutput && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col">
+                <button
+                  onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                  className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between hover:bg-slate-900/80 transition-colors"
+                >
+                  <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                    </span>
+                    Flujo de Pensamiento de Gemma 4
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">
+                    {isThinkingExpanded ? "Colapsar [-]" : "Expandir [+]"}
+                  </span>
+                </button>
+
+                <AnimatePresence>
+                  {isThinkingExpanded && (
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: "auto" }}
+                      exit={{ height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-6 bg-slate-950/80 font-mono text-xs text-slate-350 leading-relaxed max-h-[300px] overflow-y-auto whitespace-pre-wrap selection:bg-indigo-500/30">
+                        {thinkingOutput.thinking}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
             {/* Premium Output Display Container */}
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-850 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-              <div className="px-6 py-4 bg-gray-50/50 dark:bg-gray-950 border-b border-gray-150 dark:border-gray-800 flex items-center justify-between">
+            <div className="space-y-6">
+              <div className="px-6 py-4 bg-gray-50/50 dark:bg-gray-950 border-b border-gray-150 dark:border-gray-800 flex items-center justify-between rounded-xl">
                 <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
                   Resultado de la Automatización
                 </span>
@@ -358,13 +460,78 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                 </div>
               </div>
 
-              {/* Styled Preview Frame */}
-              <div className="p-6 overflow-auto max-h-[450px]">
-                <div
-                  className="prose dark:prose-invert max-w-none text-sm text-gray-800 dark:text-gray-200 leading-relaxed font-sans"
-                  dangerouslySetInnerHTML={{ __html: shortcut.mockOutput }}
-                />
-              </div>
+              {thinkingOutput ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Agreements list card */}
+                  <div className="bg-white dark:bg-gray-900 border border-gray-150 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-4 hover:border-blue-400/40 transition-colors">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      Acuerdos Tomados
+                    </h3>
+                    <ul className="space-y-2">
+                      {thinkingOutput.acuerdos.map((acuerdo, i) => (
+                        <li key={i} className="text-xs text-gray-700 dark:text-gray-300 list-disc list-inside leading-relaxed">
+                          {acuerdo}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Risks & Conflicts card */}
+                  <div className="bg-white dark:bg-gray-900 border border-gray-150 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-4 hover:border-amber-400/40 transition-colors">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      Riesgos & Conflictos
+                    </h3>
+                    <ul className="space-y-2">
+                      {thinkingOutput.conflictos.map((conflicto, i) => (
+                        <li key={i} className="text-xs text-gray-700 dark:text-gray-300 list-disc list-inside leading-relaxed">
+                          {conflicto}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Responsibility Matrix card */}
+                  <div className="col-span-1 md:col-span-2 bg-white dark:bg-gray-900 border border-gray-150 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-4">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                      Matriz de Responsabilidades
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-gray-800 text-gray-400 uppercase tracking-wider">
+                            <th className="py-3 px-4 font-bold">Tarea / Compromiso</th>
+                            <th className="py-3 px-4 font-bold">Responsable</th>
+                            <th className="py-3 px-4 font-bold text-right">Fecha Límite</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {thinkingOutput.matriz.map((item, i) => (
+                            <tr key={i} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-950/40 transition-colors">
+                              <td className="py-3 px-4 text-gray-850 dark:text-gray-200 font-medium">{item.tarea}</td>
+                              <td className="py-3 px-4">
+                                <span className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-[10px] font-extrabold text-gray-600 dark:text-gray-400">
+                                  {item.responsable}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right font-bold text-indigo-600 dark:text-indigo-400">{item.fecha_limite}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 overflow-auto max-h-[450px]">
+                  <div
+                    className="prose dark:prose-invert max-w-none text-sm text-gray-800 dark:text-gray-200 leading-relaxed font-sans"
+                    dangerouslySetInnerHTML={{ __html: shortcut.mockOutput }}
+                  />
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -372,3 +539,4 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
     </div>
   );
 }
+

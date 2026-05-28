@@ -60,15 +60,16 @@ impl VectorDatabase {
     }
 
     pub fn search(&self, query_vector: &[f32], limit: usize) -> Result<Vec<SearchResult>, String> {
-        if self.records.is_empty() {
+        if self.records.is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
 
         let normalized_query = normalize_vector(query_vector);
         let query_dimensions = normalized_query.len();
-        let mut results = Vec::new();
+        let sparse_query = build_sparse_query(&normalized_query);
+        let mut scores = Vec::with_capacity(self.records.len());
 
-        for record in &self.records {
+        for (index, record) in self.records.iter().enumerate() {
             if record.vector.len() != query_dimensions {
                 return Err(format!(
                     "Dimension mismatch: query vector has {} dimensions, but database record '{}' has {} dimensions",
@@ -76,25 +77,29 @@ impl VectorDatabase {
                 ));
             }
 
-            let similarity = calculate_dot_product(&normalized_query, &record.vector);
-            results.push(SearchResult {
-                record: record.clone(),
+            let similarity = if sparse_query.len() < query_dimensions / 2 {
+                calculate_sparse_dot_product(&sparse_query, &record.vector)
+            } else {
+                calculate_dot_product(&normalized_query, &record.vector)
+            };
+            scores.push((index, similarity));
+        }
+
+        let top_count = limit.min(scores.len());
+        if top_count < scores.len() {
+            scores.select_nth_unstable_by(top_count, compare_scores_descending);
+            scores.truncate(top_count);
+        }
+
+        scores.sort_by(compare_scores_descending);
+
+        Ok(scores
+            .into_iter()
+            .map(|(index, similarity)| SearchResult {
+                record: self.records[index].clone(),
                 similarity,
-            });
-        }
-
-        results.sort_by(|first, second| {
-            second
-                .similarity
-                .partial_cmp(&first.similarity)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        if results.len() > limit {
-            results.truncate(limit);
-        }
-
-        Ok(results)
+            })
+            .collect())
     }
 
     pub fn find_by_id(&self, chunk_id: &str) -> Option<&VectorRecord> {
@@ -144,6 +149,28 @@ impl VectorDatabase {
 
         Ok(())
     }
+}
+
+fn compare_scores_descending(first: &(usize, f32), second: &(usize, f32)) -> std::cmp::Ordering {
+    second
+        .1
+        .partial_cmp(&first.1)
+        .unwrap_or(std::cmp::Ordering::Equal)
+}
+
+fn build_sparse_query(vector: &[f32]) -> Vec<(usize, f32)> {
+    vector
+        .iter()
+        .enumerate()
+        .filter_map(|(index, value)| (*value != 0.0).then_some((index, *value)))
+        .collect()
+}
+
+fn calculate_sparse_dot_product(query: &[(usize, f32)], record: &[f32]) -> f32 {
+    query
+        .iter()
+        .map(|(index, value)| value * record[*index])
+        .sum()
 }
 
 fn calculate_dot_product(first: &[f32], second: &[f32]) -> f32 {
