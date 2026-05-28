@@ -28,6 +28,38 @@ export interface SaveDocumentVersionInput {
   new_content: string;
 }
 
+export type StructuredTableDataType =
+  | "string"
+  | "number"
+  | "integer"
+  | "boolean"
+  | "date"
+  | "currency";
+
+export interface StructuredTableColumn {
+  name: string;
+  data_type: StructuredTableDataType;
+  nullable: boolean;
+}
+
+export type StructuredTableCellValue = string | number | boolean | null;
+
+export interface StructuredTableCell {
+  column: string;
+  value: StructuredTableCellValue;
+  raw_value: string;
+  confidence: number;
+}
+
+export interface StructuredTableRow {
+  cells: StructuredTableCell[];
+}
+
+export interface StructuredResultsTableJson {
+  columns: StructuredTableColumn[];
+  rows: StructuredTableRow[];
+}
+
 export type DocumentFormat = "pdf" | "docx" | "xlsx" | "plaintext";
 
 export interface ExtractedDocument {

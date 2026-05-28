@@ -2,14 +2,21 @@
 
 import type { ContentPart, MultimodalMessage, Citation } from '@/lib/multimodal';
 import CitationBadge from './CitationBadge';
+import StructuredResultsTable, { parseStructuredResultsTableJson } from './StructuredResultsTable';
 
 interface ChatMessageProps {
   message: MultimodalMessage;
   onCitationClick?: (citation: Citation) => void;
 }
 
-function renderPart(part: ContentPart, i: number) {
+function renderPart(part: ContentPart, i: number, isUser: boolean) {
   if (part.type === 'text') {
+    const structuredTable = isUser ? null : parseStructuredResultsTableJson(part.text);
+
+    if (structuredTable) {
+      return <StructuredResultsTable key={i} table={structuredTable} />;
+    }
+
     return <p key={i} className="text-sm leading-relaxed">{part.text}</p>;
   }
   if (part.type === 'image_url') {
@@ -36,7 +43,7 @@ export default function ChatMessage({ message, onCitationClick }: ChatMessagePro
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'}`}>
-        {message.content.map((part, i) => renderPart(part, i))}
+        {message.content.map((part, i) => renderPart(part, i, isUser))}
         {!isUser && message.citations && message.citations.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-gray-300 dark:border-gray-600">
             {message.citations.map((citation, index) => (
