@@ -143,15 +143,20 @@ fn sidecar_status(
     let guard = state.0.lock().map_err(|e| e.to_string())?;
 
     match &*guard {
-        Some(s) => Ok(SidecarStatus {
-            running: true,
-            port: Some(s.port),
-            model: Some(s.model_path.to_string_lossy().to_string()),
-        }),
+        Some(s) => {
+            let multimodal = sidecar::resolve_mmproj_path(&s.model_path).is_some();
+            Ok(SidecarStatus {
+                running: true,
+                port: Some(s.port),
+                model: Some(s.model_path.to_string_lossy().to_string()),
+                multimodal,
+            })
+        }
         None => Ok(SidecarStatus {
             running: false,
             port: None,
             model: None,
+            multimodal: false,
         }),
     }
 }
@@ -325,6 +330,7 @@ pub fn run() {
             multimodal::chat_complete_multimodal,
             multimodal::encode_image_base64,
             multimodal::encode_audio_base64,
+            multimodal::process_ocr_local,
             ai_transform_text,
             template_init,
             template_list,

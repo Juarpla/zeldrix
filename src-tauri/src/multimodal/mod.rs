@@ -249,3 +249,103 @@ pub fn encode_audio_base64(path: String) -> Result<String, String> {
 
     Ok(data_url)
 }
+
+/// Procesa una imagen local a través del canal multimodal para extraer su texto (OCR local)
+#[tauri::command]
+pub async fn process_ocr_local(
+    sidecar_state: State<'_, SidecarState>,
+    image_base64: String,
+) -> Result<String, String> {
+    // Obtener el puerto del sidecar
+    let port = {
+        let guard = sidecar_state.0.lock().map_err(|e| e.to_string())?;
+        match guard.as_ref() {
+            Some(sidecar) => sidecar.port,
+            None => return Err("Sidecar not running. Start it first.".to_string()),
+        }
+    };
+
+    // Verificar que el sidecar está saludable
+    if !health::check_health(port).await {
+        return Err(format!("Sidecar not responding on port {}", port));
+    }
+
+    // Usar la imagen base64 directamente
+    let data_url = image_base64;
+
+    // Construir mensajes en formato OpenAI
+    let system_msg = types::OpenAIMessage {
+        role: "system".to_string(),
+        content: Some(vec![types::OpenAIContentPart::Text {
+            text: "Eres un motor de OCR local de alto rendimiento. Extrae todo el texto visible en la imagen de documento, factura o recibo proporcionada con la mayor precisión posible. Devuelve ÚNICAMENTE el texto extraído estructurado de forma limpia y legible. No agregues explicaciones, introducciones ni conclusiones.".to_string(),
+        }]),
+        tool_calls: None,
+        tool_call_id: None,
+    };
+
+    let user_msg = types::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(vec![
+            types::OpenAIContentPart::Text {
+                text: "Extrae todo el texto legible de este documento.".to_string(),
+            },
+            types::OpenAIContentPart::ImageUrl {
+                image_url: types::ImageUrlContent {
+                    url: data_url,
+                    detail: Some("auto".to_string()),
+                },
+            },
+        ]),
+        tool_calls: None,
+        tool_call_id: None,
+    };
+
+    let oai_messages = vec![system_msg, user_msg];
+
+    // Client HTTP
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{}/v1/chat/completions", port);
+
+    #[derive(serde::Serialize)]
+    struct ChatRequest<'a> {
+        model: &'a str,
+        messages: &'a [types::OpenAIMessage],
+        stream: bool,
+    }
+
+    let request_body = ChatRequest {
+        model: "gemma-4-E2B-it",
+        messages: &oai_messages,
+        stream: false,
+    };
+
+    // Enviar request al llama-server
+    let response = client
+        .post(&url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Request to llama-server failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("llama-server returned error {}: {}", status, text));
+    }
+
+    // Parsear respuesta
+    let response_json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    // Extraer contenido del asistente
+    if let Some(content) = response_json
+        .pointer("/choices/0/message/content")
+        .and_then(|v| v.as_str())
+    {
+        return Ok(content.to_string());
+    }
+
+    Err("No content returned from OCR process".to_string())
+}

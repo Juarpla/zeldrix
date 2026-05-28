@@ -74,18 +74,21 @@ export async function getSidecarStatus(): Promise<{
   running: boolean;
   port?: number;
   model?: string;
+  multimodal?: boolean;
 }> {
   try {
     const status = await invoke<{
       running: boolean;
       port: number | null;
       model: string | null;
+      multimodal: boolean;
     }>("sidecar_status");
 
     return {
       running: status.running,
       port: status.port ?? undefined,
       model: status.model ?? undefined,
+      multimodal: status.multimodal,
     };
   } catch {
     return { running: false };

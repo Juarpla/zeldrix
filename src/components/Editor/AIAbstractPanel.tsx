@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AIAbstractForm } from "./AIAbstractForm";
+import { LocalOcrForm } from "./LocalOcrForm";
 
 interface AIAbstractPanelProps {
   templateId: number | null;
@@ -19,6 +20,14 @@ export function AIAbstractPanel({
   onApplyToDocument,
   onLoadingChange,
 }: AIAbstractPanelProps) {
+  const [freeText, setFreeText] = useState("");
+  const [activeTab, setActiveTab] = useState("abstract");
+
+  const handleInjectOcrText = (text: string) => {
+    setFreeText(text);
+    setActiveTab("abstract");
+  };
+
   return (
     <div className="flex flex-col h-full bg-background border-r">
       {/* Header */}
@@ -54,7 +63,7 @@ export function AIAbstractPanel({
 
       {/* Tabs */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        <Tabs defaultValue="abstract" className="flex-1 flex flex-col px-4 pt-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col px-4 pt-4">
           <TabsList className="w-full">
             <TabsTrigger value="abstract" className="flex-1 text-xs">
               <svg
@@ -93,6 +102,27 @@ export function AIAbstractPanel({
               </svg>
               Campos
             </TabsTrigger>
+            <TabsTrigger value="ocr" className="flex-1 text-xs">
+              <svg
+                className="w-4 h-4 mr-1.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM18.75 10.5h.008v.008h-.008V10.5Z"
+                />
+              </svg>
+              Digitalizar
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="abstract" className="flex-1 mt-0 -mx-4 overflow-hidden">
@@ -101,6 +131,8 @@ export function AIAbstractPanel({
               requiredVariables={requiredVariables}
               onApplyToDocument={onApplyToDocument}
               onLoadingChange={onLoadingChange}
+              freeText={freeText}
+              onFreeTextChange={setFreeText}
             />
           </TabsContent>
 
@@ -109,6 +141,15 @@ export function AIAbstractPanel({
               templateId={templateId}
               requiredVariables={requiredVariables}
               onApplyToDocument={onApplyToDocument}
+              onLoadingChange={onLoadingChange}
+              freeText={freeText}
+              onFreeTextChange={setFreeText}
+            />
+          </TabsContent>
+
+          <TabsContent value="ocr" className="flex-1 mt-0 -mx-4 overflow-hidden">
+            <LocalOcrForm
+              onInjectText={handleInjectOcrText}
               onLoadingChange={onLoadingChange}
             />
           </TabsContent>

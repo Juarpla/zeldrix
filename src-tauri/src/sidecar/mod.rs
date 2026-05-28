@@ -137,4 +137,5 @@ pub struct SidecarStatus {
     pub running: bool,
     pub port: Option<u16>,
     pub model: Option<String>,
+    pub multimodal: bool,
 }

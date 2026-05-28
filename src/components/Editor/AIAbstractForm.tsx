@@ -14,6 +14,8 @@ interface AIAbstractFormProps {
   requiredVariables: string[];
   onApplyToDocument: (values: Record<string, string>) => void;
   onLoadingChange?: (loading: boolean) => void;
+  freeText: string;
+  onFreeTextChange: (text: string) => void;
 }
 
 export function AIAbstractForm({
@@ -21,8 +23,9 @@ export function AIAbstractForm({
   requiredVariables,
   onApplyToDocument,
   onLoadingChange,
+  freeText,
+  onFreeTextChange,
 }: AIAbstractFormProps) {
-  const [freeText, setFreeText] = useState("");
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [aiFilledFields, setAIFilledFields] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
@@ -127,7 +130,7 @@ export function AIAbstractForm({
           </p>
           <Textarea
             value={freeText}
-            onChange={(e) => setFreeText(e.target.value)}
+            onChange={(e) => onFreeTextChange(e.target.value)}
             placeholder="Ej: Págale 1500 soles a Juan Pérez este fin de mes por el servicio de consultoría"
             className="min-h-[120px] resize-none"
           />
