@@ -60,6 +60,8 @@ calamine = "0.24"
 pdf-extract = "0.7"
 quick-xml = "0.36"
 zip = "2"
+notify = "6.1.1"
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,8 +1,18 @@
 pub mod chunking;
 pub mod embeddings;
+pub mod sync_service;
 
 pub use chunking::{chunk_text, Chunk, ChunkConfig, TokenEstimator};
 pub use embeddings::{generate_embeddings, get_embeddings};
+pub use sync_service::{
+    get_monitored_folder,
+    set_monitored_folder,
+    get_sync_status,
+    get_sync_queue,
+    SyncServiceState,
+    start_sync_worker,
+    initialize_watcher,
+};
 
 use calamine::{open_workbook_auto, Data, Reader};
 use quick_xml::events::Event;

@@ -25,7 +25,18 @@ use templates_db::TemplateDb;
 use templates_db::{template_init, template_list, template_get_by_id};
 use merge_engine::{merge, Variables};
 use document_history::{document_version_list, document_version_save};
-use document_ingestion::{extract_document_text, chunk_extracted_text, get_embeddings};
+use document_ingestion::{
+    extract_document_text,
+    chunk_extracted_text,
+    get_embeddings,
+    get_monitored_folder,
+    set_monitored_folder,
+    get_sync_status,
+    get_sync_queue,
+    SyncServiceState,
+    start_sync_worker,
+    initialize_watcher,
+};
 use vector_db::{
     vector_db_insert,
     vector_db_search,
@@ -303,6 +314,8 @@ async fn export_document(request: ExportRequest) -> Result<ExportResult, String>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<std::path::PathBuf>();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -314,6 +327,7 @@ pub fn run() {
         .manage(TemplateDb(Mutex::new(
             rusqlite::Connection::open_in_memory().expect("failed to open templates db"),
         )))
+        .manage(SyncServiceState::new(tx))
         .invoke_handler(tauri::generate_handler![
             sidecar_start,
             sidecar_stop,
@@ -349,6 +363,10 @@ pub fn run() {
             retrieve_relevant_context,
             format_inference_prompt,
             get_citation_fragment,
+            get_monitored_folder,
+            set_monitored_folder,
+            get_sync_status,
+            get_sync_queue,
         ])
         .setup(|app| {
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {
@@ -362,6 +380,33 @@ pub fn run() {
             }
             
             app.manage(VectorDbState(std::sync::RwLock::new(database)));
+
+            // Start the background sync worker
+            let app_handle = app.handle().clone();
+            start_sync_worker(app_handle.clone(), rx);
+
+            // Auto-load saved config if it exists
+            let config_path = local_data_dir.join("sync_config.json");
+            if config_path.exists() {
+                if let Ok(content) = std::fs::read_to_string(&config_path) {
+                    #[derive(serde::Deserialize)]
+                    struct SavedConfig {
+                        monitored_folder: String,
+                    }
+                    if let Ok(config_data) = serde_json::from_str::<SavedConfig>(&content) {
+                        let path = std::path::PathBuf::from(config_data.monitored_folder);
+                        if path.exists() && path.is_dir() {
+                            if let Some(sync_state) = app_handle.try_state::<SyncServiceState>() {
+                                if let Err(e) = initialize_watcher(path, &sync_state, app_handle.clone()) {
+                                    eprintln!("Failed to initialize auto-sync folder on startup: {}", e);
+                                } else {
+                                    println!("Successfully auto-initialized sync folder on startup.");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // Auto-start sidecar in background thread (non-blocking)
             let app_handle = app.handle().clone();
