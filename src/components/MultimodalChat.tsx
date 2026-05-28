@@ -4,13 +4,24 @@ import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import ChatInput from './ChatInput';
 import ChatMessage from './ChatMessage';
+import CitationDrawer from './CitationDrawer';
 import type { MediaFile, MultimodalMessage, ContentPart } from '@/lib/multimodal';
 import { mediaFileToContentPart } from '@/lib/multimodal';
+import type { Citation } from '@/lib/citation-types';
+
+interface RetrievalResult {
+  id: string;
+  text: string;
+  file_path: string;
+  similarity: number;
+  page_number: number | null;
+}
 
 export default function MultimodalChat() {
   const [messages, setMessages] = useState<MultimodalMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
 
   const handleSend = useCallback(async (text: string, files: MediaFile[]) => {
     // Build user message with text and attached files
@@ -35,16 +46,65 @@ export default function MultimodalChat() {
     setIsLoading(true);
 
     try {
+      // Step 1: Retrieve context from vector DB for semantic traceability (RAG)
+      let retrievedContext: RetrievalResult[] = [];
+      let citations: Citation[] = [];
+
+      if (text) {
+        try {
+          retrievedContext = await invoke<RetrievalResult[]>('retrieve_relevant_context', {
+            query: text,
+            limit: 5,
+          });
+
+          citations = retrievedContext.map((res) => ({
+            chunkId: res.id,
+            filePath: res.file_path,
+            fileName: res.file_path.split('/').pop() ?? res.file_path,
+            pageNumber: res.page_number,
+            fragmentText: res.text,
+            similarityScore: res.similarity,
+          }));
+        } catch (retrievalError) {
+          console.error('RAG Retrieval failed, continuing with direct generation:', retrievalError);
+        }
+      }
+
+      // Step 2: Inject retrieved context into Gemma 4 query (Prompt Packing Pipeline)
+      let userContentForBackend = [...userContent];
+      if (text && retrievedContext.length > 0) {
+        try {
+          const packed = await invoke<{ formatted_prompt: string }>('format_inference_prompt', {
+            query: text,
+            documents: retrievedContext,
+            maxTokens: 4000,
+          });
+
+          userContentForBackend = [
+            { type: 'text', text: packed.formatted_prompt },
+            ...userContent.filter((part) => part.type !== 'text'),
+          ];
+        } catch (packerError) {
+          console.error('Prompt packing failed, using raw query text:', packerError);
+        }
+      }
+
       // Send to backend - concatenate all messages for context
-      const allMessages = [...messages, userMessage];
+      const userMessageForBackend: MultimodalMessage = {
+        role: 'user',
+        content: userContentForBackend,
+      };
+      const allMessages = [...messages, userMessageForBackend];
+
       const response = await invoke<string>('chat_complete_multimodal', {
         messages: allMessages,
       });
 
-      // Add assistant response
+      // Add assistant response carrying citation metadata
       const assistantMessage: MultimodalMessage = {
         role: 'assistant',
         content: [{ type: 'text', text: response }],
+        citations: citations.length > 0 ? citations : undefined,
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (err) {
@@ -57,7 +117,7 @@ export default function MultimodalChat() {
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -83,7 +143,11 @@ export default function MultimodalChat() {
         )}
 
         {messages.map((message, index) => (
-          <ChatMessage key={index} message={message} />
+          <ChatMessage
+            key={index}
+            message={message}
+            onCitationClick={setActiveCitation}
+          />
         ))}
 
         {isLoading && (
@@ -111,6 +175,12 @@ export default function MultimodalChat() {
       <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
         <ChatInput onSend={handleSend} disabled={isLoading} />
       </div>
+
+      {/* Slide-out Citation Panel */}
+      <CitationDrawer
+        citation={activeCitation}
+        onClose={() => setActiveCitation(null)}
+      />
     </div>
   );
 }

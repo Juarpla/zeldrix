@@ -18,6 +18,8 @@ pub struct RetrievalResult {
     pub text: String,
     pub file_path: String,
     pub similarity: f32,
+    #[serde(default)]
+    pub page_number: Option<u32>,
 }
 
 #[tauri::command]
@@ -52,10 +54,30 @@ pub async fn retrieve_relevant_context(
             text: result.record.text,
             file_path: result.record.file_path,
             similarity: result.similarity,
+            page_number: result.record.page_number,
         })
         .collect();
         
     Ok(filtered_results)
+}
+
+#[tauri::command]
+pub fn get_citation_fragment(
+    db_state: State<'_, VectorDbState>,
+    chunk_id: String,
+) -> Result<RetrievalResult, String> {
+    let db_guard = db_state.0.read().map_err(|error| error.to_string())?;
+    let record = db_guard
+        .find_by_id(&chunk_id)
+        .ok_or_else(|| format!("Citation fragment not found for chunk_id: {}", chunk_id))?;
+
+    Ok(RetrievalResult {
+        id: record.id.clone(),
+        text: record.text.clone(),
+        file_path: record.file_path.clone(),
+        similarity: 0.0,
+        page_number: record.page_number,
+    })
 }
 
 #[tauri::command]
@@ -87,13 +109,13 @@ mod tests {
         let db_path = temp_file.path().to_path_buf();
         let mut database = VectorDatabase::new(Some(db_path));
 
-        // Insert Human Resources documents discussing vacation policies, free days, and resting
         database
             .insert(
                 "hr_vacation_1".to_string(),
                 vec![0.95, 0.05, 0.0],
                 "Las políticas de Recursos Humanos otorgan 15 días hábiles de vacaciones pagadas tras cumplir el primer año de servicio.".to_string(),
                 "/documents/recursos_humanos/politicas_vacaciones.pdf".to_string(),
+                Some(3),
             )
             .unwrap();
 
@@ -103,16 +125,17 @@ mod tests {
                 vec![0.90, 0.10, 0.0],
                 "Los empleados de Zeldrix tienen derecho a solicitar días libres adicionales para asuntos personales con aprobación previa.".to_string(),
                 "/documents/recursos_humanos/politicas_vacaciones.pdf".to_string(),
+                Some(4),
             )
             .unwrap();
 
-        // Insert technical manuals discussing database configuration and server installation
         database
             .insert(
                 "tech_manual_1".to_string(),
                 vec![0.05, 0.95, 0.0],
                 "Para instalar el servidor de bases de datos, ejecute apt install postgresql-15 y configure la autenticación.".to_string(),
                 "/documents/tecnico/manual_servidor.pdf".to_string(),
+                None,
             )
             .unwrap();
 
@@ -122,34 +145,25 @@ mod tests {
                 vec![0.0, 0.98, 0.02],
                 "La sincronización de réplicas en caliente requiere configurar el parámetro hot_standby en el archivo postgresql.conf.".to_string(),
                 "/documents/tecnico/manual_servidor.pdf".to_string(),
+                None,
             )
             .unwrap();
 
-        // Simulate a query vector representing "Políticas de vacaciones" (highly semantic on HR/vacation dimension)
         let query_vector = vec![1.0, 0.0, 0.0];
-
-        // Search the vector database with a high limit to get all records
         let search_results = database.search(&query_vector, 10).unwrap();
 
-        // Map and filter manually to mimic the command logic
         let threshold = 0.5;
         let filtered_results: Vec<SearchResult> = search_results
             .into_iter()
             .filter(|result| result.similarity >= threshold)
             .collect();
 
-        // Verify that only the Human Resources documents are retrieved
         assert_eq!(filtered_results.len(), 2);
-        
-        // Verify that the top result is "hr_vacation_1" and has a high similarity score
         assert_eq!(filtered_results[0].record.id, "hr_vacation_1");
         assert!(filtered_results[0].similarity > 0.9);
-
-        // Verify that the second result is "hr_vacation_2"
         assert_eq!(filtered_results[1].record.id, "hr_vacation_2");
         assert!(filtered_results[1].similarity > 0.8);
 
-        // Verify that no technical manual documents are included in the filtered results
         for result in &filtered_results {
             assert!(result.record.id.starts_with("hr_vacation"));
             assert!(!result.record.id.starts_with("tech_manual"));
@@ -157,4 +171,33 @@ mod tests {
             assert!(!result.record.file_path.contains("tecnico"));
         }
     }
+
+    #[test]
+    fn test_get_citation_fragment_returns_known_chunk() {
+        let mut database = VectorDatabase::new(None);
+        database
+            .insert(
+                "chunk_policy_01".to_string(),
+                vec![0.8, 0.2],
+                "El proceso de auditoría interna se realiza trimestralmente por el departamento de control.".to_string(),
+                "/documents/auditoria/politicas_internas.pdf".to_string(),
+                Some(7),
+            )
+            .unwrap();
+
+        let found = database.find_by_id("chunk_policy_01").expect("chunk must exist");
+
+        assert_eq!(found.id, "chunk_policy_01");
+        assert_eq!(found.page_number, Some(7));
+        assert!(found.text.contains("auditoría interna"));
+        assert!(found.file_path.contains("politicas_internas.pdf"));
+    }
+
+    #[test]
+    fn test_get_citation_fragment_missing_chunk_returns_none() {
+        let database = VectorDatabase::new(None);
+        let result = database.find_by_id("nonexistent_chunk_id_xyz");
+        assert!(result.is_none());
+    }
 }
+

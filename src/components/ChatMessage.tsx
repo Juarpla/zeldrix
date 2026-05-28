@@ -1,9 +1,11 @@
 'use client';
 
-import type { ContentPart, MultimodalMessage } from '@/lib/multimodal';
+import type { ContentPart, MultimodalMessage, Citation } from '@/lib/multimodal';
+import CitationBadge from './CitationBadge';
 
 interface ChatMessageProps {
   message: MultimodalMessage;
+  onCitationClick?: (citation: Citation) => void;
 }
 
 function renderPart(part: ContentPart, i: number) {
@@ -29,12 +31,24 @@ function renderPart(part: ContentPart, i: number) {
   return null;
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+export default function ChatMessage({ message, onCitationClick }: ChatMessageProps) {
   const isUser = message.role === 'user';
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'}`}>
         {message.content.map((part, i) => renderPart(part, i))}
+        {!isUser && message.citations && message.citations.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-gray-300 dark:border-gray-600">
+            {message.citations.map((citation, index) => (
+              <CitationBadge
+                key={citation.chunkId}
+                citation={citation}
+                index={index}
+                onClick={onCitationClick ?? (() => {})}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

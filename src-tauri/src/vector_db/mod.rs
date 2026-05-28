@@ -9,6 +9,8 @@ pub struct VectorRecord {
     pub vector: Vec<f32>,
     pub text: String,
     pub file_path: String,
+    #[serde(default)]
+    pub page_number: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -36,6 +38,7 @@ impl VectorDatabase {
         vector: Vec<f32>,
         text: String,
         file_path: String,
+        page_number: Option<u32>,
     ) -> Result<(), String> {
         let normalized_vector = normalize_vector(&vector);
         let record = VectorRecord {
@@ -43,6 +46,7 @@ impl VectorDatabase {
             vector: normalized_vector,
             text,
             file_path,
+            page_number,
         };
 
         if let Some(position) = self.records.iter().position(|item| item.id == id) {
@@ -91,6 +95,10 @@ impl VectorDatabase {
         }
 
         Ok(results)
+    }
+
+    pub fn find_by_id(&self, chunk_id: &str) -> Option<&VectorRecord> {
+        self.records.iter().find(|record| record.id == chunk_id)
     }
 
     pub fn clear(&mut self) -> Result<(), String> {
@@ -166,9 +174,10 @@ pub fn vector_db_insert(
     vector: Vec<f32>,
     text: String,
     file_path: String,
+    page_number: Option<u32>,
 ) -> Result<(), String> {
     let mut database = state.0.write().map_err(|error| error.to_string())?;
-    database.insert(id, vector, text, file_path)
+    database.insert(id, vector, text, file_path, page_number)
 }
 
 #[tauri::command]
@@ -228,6 +237,7 @@ mod tests {
                 vec![1.0, 0.0, 0.0],
                 "Hello world".to_string(),
                 "/path/hello.txt".to_string(),
+                None,
             )
             .unwrap();
 
@@ -237,6 +247,7 @@ mod tests {
                 vec![0.0, 1.0, 0.0],
                 "Rust coding".to_string(),
                 "/path/rust.txt".to_string(),
+                None,
             )
             .unwrap();
 
@@ -263,6 +274,7 @@ mod tests {
                     vec![0.5, 0.5, 0.5],
                     "Persistent text".to_string(),
                     "/path/persistent.txt".to_string(),
+                    None,
                 )
                 .unwrap();
         }
@@ -295,6 +307,7 @@ mod tests {
                     vector,
                     format!("Raw text chunk content {i}"),
                     format!("/path/to/file_{i}.txt"),
+                    None,
                 )
                 .unwrap();
         }

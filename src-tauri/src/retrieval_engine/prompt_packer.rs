@@ -114,18 +114,21 @@ mod tests {
                 text: "First document with high relevance and semantic weight.".to_string(),
                 file_path: "/docs/relevance_one.pdf".to_string(),
                 similarity: 0.95,
+                page_number: None,
             },
             RetrievalResult {
                 id: "doc_2".to_string(),
                 text: "Second document content is somewhat relevant to the query.".to_string(),
                 file_path: "/docs/relevance_two.pdf".to_string(),
                 similarity: 0.85,
+                page_number: None,
             },
             RetrievalResult {
                 id: "doc_3".to_string(),
                 text: "Third document has low correlation with the user intent.".to_string(),
                 file_path: "/docs/relevance_three.pdf".to_string(),
                 similarity: 0.70,
+                page_number: None,
             },
         ]
     }

@@ -1,6 +1,6 @@
-// Multimodal utilities for frontend
-// Handles file reading and content part construction for multimodal chat
+import type { Citation } from './citation-types';
 
+export type { Citation };
 export type ContentPartType = 'text' | 'image_url' | 'audio_url';
 
 export interface TextContentPart {
@@ -27,6 +27,7 @@ export type ContentPart = TextContentPart | ImageUrlContentPart | AudioUrlConten
 export interface MultimodalMessage {
   role: 'user' | 'assistant';
   content: ContentPart[];
+  citations?: Citation[];
 }
 
 export interface MediaFile {
