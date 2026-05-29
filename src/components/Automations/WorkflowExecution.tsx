@@ -6,6 +6,7 @@ import { AutomationShortcut } from "@/lib/automations-data";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { invoke } from "@tauri-apps/api/core";
+import { BatchQueueMonitor, BatchQueueMonitorItem } from "./BatchQueueMonitor";
 
 interface ResponsibilityItem {
   tarea: String;
@@ -25,6 +26,44 @@ interface WorkflowExecutionProps {
   shortcut: AutomationShortcut;
   onBack: () => void;
   onCompletedAction?: () => void;
+}
+
+function buildSimulatedBatchItems(
+  selectedFileName: string | null,
+  progressPercent: number,
+  estimatedSeconds: number,
+): BatchQueueMonitorItem[] {
+  const totalFiles = 30;
+  const activeIndex = Math.min(Math.floor((progressPercent / 100) * totalFiles), totalFiles - 1);
+  const nowMs = Date.now();
+  const itemDurationMs = (estimatedSeconds * 1000) / totalFiles;
+
+  return Array.from({ length: totalFiles }, (_, index) => {
+    const fileName = index === 0 && selectedFileName
+      ? selectedFileName
+      : `invoice-batch-${String(index + 1).padStart(2, "0")}.pdf`;
+
+    if (progressPercent >= 100 || index < activeIndex) {
+      const startedAt = new Date(nowMs - (activeIndex - index + 1) * itemDurationMs).toISOString();
+      const completedAt = new Date(nowMs - (activeIndex - index) * itemDurationMs).toISOString();
+
+      return {
+        id: `simulated-batch-item-${index}`,
+        fileName,
+        status: "completed",
+        startedAt,
+        completedAt,
+      };
+    }
+
+    return {
+      id: `simulated-batch-item-${index}`,
+      fileName,
+      status: index === activeIndex ? "processing" : "pending",
+      startedAt: index === activeIndex ? new Date(nowMs - itemDurationMs / 2).toISOString() : null,
+      completedAt: null,
+    };
+  });
 }
 
 export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: WorkflowExecutionProps) {
@@ -52,6 +91,10 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(true);
 
   const activeStep = shortcut.steps[currentStepIndex];
+  const shouldShowBatchMonitor = shortcut.difficulty === "heavy" && status === "running";
+  const simulatedBatchItems = shouldShowBatchMonitor
+    ? buildSimulatedBatchItems(selectedFile, progressPercent, shortcut.estimatedSeconds)
+    : [];
 
   // Run mock workflow execution or trigger native Thinking Mode command
   const runWorkflow = async () => {
@@ -352,6 +395,16 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                 })}
               </div>
             </div>
+
+            {shouldShowBatchMonitor && (
+              <BatchQueueMonitor
+                items={simulatedBatchItems}
+                fallbackEstimatedSeconds={Math.max(
+                  0,
+                  shortcut.estimatedSeconds - (shortcut.estimatedSeconds * progressPercent) / 100,
+                )}
+              />
+            )}
           </motion.div>
         )}
 
@@ -539,4 +592,3 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
     </div>
   );
 }
-
