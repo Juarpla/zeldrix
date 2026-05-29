@@ -377,6 +377,24 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(|app, shortcut, event| {
+            if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                let target_shortcut = tauri_plugin_global_shortcut::Shortcut::new(
+                    Some(tauri_plugin_global_shortcut::Modifiers::ALT),
+                    tauri_plugin_global_shortcut::Code::Space
+                );
+                if shortcut == &target_shortcut {
+                    if let Some(window) = app.get_webview_window("spotlight") {
+                        if window.is_visible().unwrap_or(false) {
+                            let _ = window.hide();
+                        } else {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                }
+            }
+        }).build())
         .manage(SidecarState(Mutex::new(None::<RunningSidecar>)))
         .manage(DownloadState(Mutex::new(None::<download_manager::RunningDownload>)))
         .manage(MultimodalChatState(Mutex::new(None::<multimodal::MultimodalSession>)))
@@ -438,6 +456,13 @@ pub fn run() {
             toggle_main_window,
         ])
         .setup(|app| {
+            // Register global shortcut Alt+Space (Option+Space on macOS)
+            use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+            let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::Space);
+            if let Err(e) = app.global_shortcut().register(shortcut) {
+                eprintln!("Failed to register global shortcut Alt+Space: {}", e);
+            }
+
             // Configure spotlight window (defined in tauri.conf.json)
             if let Some(spotlight_window) = app.get_webview_window("spotlight") {
                 // Hide spotlight when it loses focus (Raycast / Spotlight style)

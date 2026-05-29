@@ -9,6 +9,7 @@
     "shell:allow-spawn",
     "shell:allow-execute",
     "http:default",
-    "fs:default"
+    "fs:default",
+    "global-shortcut:default"
   ]
 }
