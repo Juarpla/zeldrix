@@ -16,6 +16,7 @@ mod email_parser;
 mod thinking_mode;
 mod structured_extraction;
 mod table_xlsx_exporter;
+mod batch_processing;
 
 use email_parser::clean_email_thread;
 use thinking_mode::ai_analyze_thinking_mode;
@@ -23,6 +24,12 @@ use structured_extraction::extract_structured_table_json;
 use table_xlsx_exporter::{
     ExportStructuredTableXlsxRequest,
     ExportStructuredTableXlsxResult,
+};
+use batch_processing::{
+    enqueue_structured_extraction_batch,
+    get_structured_extraction_batch_queue,
+    start_batch_processing_worker,
+    BatchProcessingState,
 };
 
 use std::sync::Mutex;
@@ -337,6 +344,7 @@ async fn export_structured_table_xlsx(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<std::path::PathBuf>();
+    let (batch_tx, batch_rx) = tokio::sync::mpsc::unbounded_channel();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -350,6 +358,7 @@ pub fn run() {
             rusqlite::Connection::open_in_memory().expect("failed to open templates db"),
         )))
         .manage(SyncServiceState::new(tx))
+        .manage(BatchProcessingState::new(batch_tx))
         .invoke_handler(tauri::generate_handler![
             sidecar_start,
             sidecar_stop,
@@ -393,6 +402,8 @@ pub fn run() {
             clean_email_thread,
             ai_analyze_thinking_mode,
             extract_structured_table_json,
+            enqueue_structured_extraction_batch,
+            get_structured_extraction_batch_queue,
         ])
         .setup(|app| {
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {
@@ -410,6 +421,7 @@ pub fn run() {
             // Start the background sync worker
             let app_handle = app.handle().clone();
             start_sync_worker(app_handle.clone(), rx);
+            start_batch_processing_worker(app_handle.clone(), batch_rx);
 
             // Auto-load saved config if it exists
             let config_path = local_data_dir.join("sync_config.json");

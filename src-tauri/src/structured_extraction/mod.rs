@@ -76,6 +76,13 @@ pub async fn extract_structured_table_json(
         return Err(format!("Sidecar not responding on port {port}"));
     }
 
+    extract_structured_table_json_from_text(document_text, port).await
+}
+
+pub async fn extract_structured_table_json_from_text(
+    document_text: String,
+    port: u16,
+) -> Result<String, String> {
     let request_body = build_structured_extraction_request(&document_text);
     let client = reqwest::Client::new();
     let url = format!("http://127.0.0.1:{port}/v1/chat/completions");
