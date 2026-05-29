@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import ChatInput from './ChatInput';
 import ChatMessage from './ChatMessage';
 import CitationDrawer from './CitationDrawer';
+import { getSidecarStatus } from '@/lib/aiService';
 import type { MediaFile, MultimodalMessage, ContentPart } from '@/lib/multimodal';
 import { mediaFileToContentPart } from '@/lib/multimodal';
 import type { Citation } from '@/lib/citation-types';
@@ -22,6 +23,25 @@ export default function MultimodalChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
+  const [sidecarRunning, setSidecarRunning] = useState(false);
+  const [checkingSidecar, setCheckingSidecar] = useState(true);
+
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const status = await getSidecarStatus();
+        setSidecarRunning(status.running);
+      } catch {
+        setSidecarRunning(false);
+      } finally {
+        setCheckingSidecar(false);
+      }
+    }
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSend = useCallback(async (text: string, files: MediaFile[]) => {
     // Build user message with text and attached files
@@ -128,6 +148,31 @@ export default function MultimodalChat() {
         </p>
       </div>
 
+      {/* Sidecar Status Banner */}
+      {!sidecarRunning && !checkingSidecar && (
+        <div className="flex-shrink-0 mx-6 mt-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 animate-pulse">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">AI engine not running</p>
+            <p className="text-[10px] text-amber-600/70 dark:text-amber-400/60">Start the model from the system panel to enable chat.</p>
+          </div>
+        </div>
+      )}
+
+      {checkingSidecar && (
+        <div className="flex-shrink-0 mx-6 mt-3 rounded-xl border border-gray-200/50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30 px-4 py-3 flex items-center gap-3">
+          <svg className="animate-spin h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Checking AI engine status…</p>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {messages.length === 0 && !isLoading && (
@@ -173,7 +218,7 @@ export default function MultimodalChat() {
 
       {/* Input */}
       <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-        <ChatInput onSend={handleSend} disabled={isLoading} />
+        <ChatInput onSend={handleSend} disabled={isLoading || !sidecarRunning || checkingSidecar} />
       </div>
 
       {/* Slide-out Citation Panel */}

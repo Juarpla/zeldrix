@@ -530,6 +530,18 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Clean up the active llama-server child process on application exit
+                let state = app_handle.state::<SidecarState>();
+                if let Ok(mut guard) = state.0.lock() {
+                    if let Some(mut sidecar) = guard.take() {
+                        let _ = sidecar.process.kill();
+                        println!("Successfully cleaned up active llama-server child process on application exit.");
+                    }
+                };
+            }
+        });
 }

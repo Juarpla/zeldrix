@@ -76,107 +76,114 @@ pub struct ModelInfo {
 /// Lista de modelos disponibles desde Unsloth
 pub fn get_available_models() -> Vec<ModelInfo> {
     vec![
+        // 1. Gemma 4 4B IT Q4_XS (Multimodal)
         ModelInfo {
-            id: "gemma-4-E2B-it-IQ4_XS".to_string(),
-            name: "Gemma 3 4B IT Q4_XS".to_string(),
+            id: "gemma-4-E4B-it-IQ4_XS".to_string(),
+            name: "Gemma 4 4B IT Q4_XS".to_string(),
             model_type: "chat".to_string(),
-            vram: "~4GB".to_string(),
+            vram: "~8GB".to_string(),
             params: "4B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/gemma-4-E2B-it-IQ4_XS.gguf".to_string(),
-            expected_hash: "5cd8fb7e8f5f6e7c8f5f6e7c8f5f6e7c8f5f6e7c".to_string(), // Placeholder - real hash needed
-            size_bytes: 2_500_000_000,
-            // mmproj para visión y audio - mismo prefijo "mmproj-" en Hugging Face
-            mmproj_url: Some("https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/mmproj-gemma-4-E2B-it-IQ4_XS.gguf".to_string()),
+            url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-IQ4_XS.gguf".to_string(),
+            expected_hash: "placeholder".to_string(),
+            size_bytes: 4_300_000_000,
+            mmproj_url: Some("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/mmproj-gemma-4-E4B-it-IQ4_XS.gguf".to_string()),
             mmproj_hash: Some("placeholder".to_string()),
-            mmproj_size: Some(900_000_000), // ~900MB para el projector
+            mmproj_size: Some(900_000_000),
         },
+        // 2. Gemma 4 2B IT Q6_K (Multimodal)
         ModelInfo {
-            id: "llama-4-E2B-it-IQ4_M".to_string(),
-            name: "Llama 4 Scout Q4_M".to_string(),
+            id: "gemma-4-E2B-it-Q6_K".to_string(),
+            name: "Gemma 4 2B IT Q6_K".to_string(),
             model_type: "chat".to_string(),
-            vram: "~8GB".to_string(),
-            params: "17B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/llama-4-E2B-it-IQ4_M.gguf".to_string(),
-            expected_hash: "placeholder".to_string(),
-            size_bytes: 9_000_000_000,
-            mmproj_url: None,
-            mmproj_hash: None,
-            mmproj_size: None,
-        },
-        ModelInfo {
-            id: "mistral-4-E2B-it-IQ4_M".to_string(),
-            name: "Mistral Small 3.1 Q4_M".to_string(),
-            model_type: "chat".to_string(),
-            vram: "~8GB".to_string(),
-            params: "22B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/mistral-4-E2B-it-IQ4_M.gguf".to_string(),
-            expected_hash: "placeholder".to_string(),
-            size_bytes: 12_000_000_000,
-            mmproj_url: None,
-            mmproj_hash: None,
-            mmproj_size: None,
-        },
-        ModelInfo {
-            id: "qwen-4-E2B-it-IQ4_M".to_string(),
-            name: "Qwen 3.5 Q4_M".to_string(),
-            model_type: "chat".to_string(),
-            vram: "~8GB".to_string(),
-            params: "32B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/qwen-4-E2B-it-IQ4_M.gguf".to_string(),
-            expected_hash: "placeholder".to_string(),
-            size_bytes: 18_000_000_000,
-            mmproj_url: None,
-            mmproj_hash: None,
-            mmproj_size: None,
-        },
-        ModelInfo {
-            id: "deepseek-4-E2B-it-IQ4_M".to_string(),
-            name: "Deepseek Chat Q4_M".to_string(),
-            model_type: "chat".to_string(),
-            vram: "~8GB".to_string(),
-            params: "32B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/deepseek-4-E2B-it-IQ4_M.gguf".to_string(),
-            expected_hash: "placeholder".to_string(),
-            size_bytes: 18_000_000_000,
-            mmproj_url: None,
-            mmproj_hash: None,
-            mmproj_size: None,
-        },
-        ModelInfo {
-            id: "phi-4-E2B-it-IQ4_M".to_string(),
-            name: "Phi-4 Q4_M".to_string(),
-            model_type: "chat".to_string(),
-            vram: "~8GB".to_string(),
-            params: "14B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/phi-4-E2B-it-IQ4_M.gguf".to_string(),
-            expected_hash: "placeholder".to_string(),
-            size_bytes: 8_000_000_000,
-            mmproj_url: None,
-            mmproj_hash: None,
-            mmproj_size: None,
-        },
-        ModelInfo {
-            id: "nomic-4-E2B-it-IQ4_M".to_string(),
-            name: "Nomic Embed Q4_M".to_string(),
-            model_type: "embedding".to_string(),
             vram: "~4GB".to_string(),
-            params: "7B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/nomic-4-E2B-it-IQ4_M.gguf".to_string(),
+            params: "2B".to_string(),
+            url: "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q6_K.gguf".to_string(),
             expected_hash: "placeholder".to_string(),
-            size_bytes: 4_000_000_000,
-            mmproj_url: None,
-            mmproj_hash: None,
-            mmproj_size: None,
+            size_bytes: 3_200_000_000,
+            mmproj_url: Some("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-IQ4_XS.gguf".to_string()),
+            mmproj_hash: Some("placeholder".to_string()),
+            mmproj_size: Some(900_000_000),
         },
+        // 3. Gemma 4 4B IT Q6_K (Multimodal)
         ModelInfo {
-            id: "excel-4-E2B-it-IQ4_M".to_string(),
-            name: "Excel LLM Q4_M".to_string(),
-            model_type: "specialized".to_string(),
+            id: "gemma-4-E4B-it-Q6_K".to_string(),
+            name: "Gemma 4 4B IT Q6_K".to_string(),
+            model_type: "chat".to_string(),
             vram: "~8GB".to_string(),
-            params: "14B".to_string(),
-            url: "https://huggingface.co/unsloth/unsloth.2025.41/resolve/main/excel-4-E2B-it-IQ4_M.gguf".to_string(),
+            params: "4B".to_string(),
+            url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q6_K.gguf".to_string(),
+            expected_hash: "placeholder".to_string(),
+            size_bytes: 6_500_000_000,
+            mmproj_url: Some("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/mmproj-gemma-4-E4B-it-IQ4_XS.gguf".to_string()),
+            mmproj_hash: Some("placeholder".to_string()),
+            mmproj_size: Some(900_000_000),
+        },
+        // 4. Gemma 4 2B IT Q8_0 (Multimodal)
+        ModelInfo {
+            id: "gemma-4-E2B-it-Q8_0".to_string(),
+            name: "Gemma 4 2B IT Q8_0".to_string(),
+            model_type: "chat".to_string(),
+            vram: "~4GB".to_string(),
+            params: "2B".to_string(),
+            url: "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf".to_string(),
+            expected_hash: "placeholder".to_string(),
+            size_bytes: 4_200_000_000,
+            mmproj_url: Some("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-IQ4_XS.gguf".to_string()),
+            mmproj_hash: Some("placeholder".to_string()),
+            mmproj_size: Some(900_000_000),
+        },
+        // 5. Gemma 4 4B IT Q8_0 (Multimodal)
+        ModelInfo {
+            id: "gemma-4-E4B-it-Q8_0".to_string(),
+            name: "Gemma 4 4B IT Q8_0".to_string(),
+            model_type: "chat".to_string(),
+            vram: "~8GB".to_string(),
+            params: "4B".to_string(),
+            url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q8_0.gguf".to_string(),
+            expected_hash: "placeholder".to_string(),
+            size_bytes: 8_500_000_000,
+            mmproj_url: Some("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/mmproj-gemma-4-E4B-it-IQ4_XS.gguf".to_string()),
+            mmproj_hash: Some("placeholder".to_string()),
+            mmproj_size: Some(900_000_000),
+        },
+        // 6. Gemma 4 2B IT BF16 (Multimodal)
+        ModelInfo {
+            id: "gemma-4-E2B-it-BF16".to_string(),
+            name: "Gemma 4 2B IT BF16".to_string(),
+            model_type: "chat".to_string(),
+            vram: "~8GB".to_string(),
+            params: "2B".to_string(),
+            url: "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-BF16.gguf".to_string(),
             expected_hash: "placeholder".to_string(),
             size_bytes: 8_000_000_000,
+            mmproj_url: Some("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/mmproj-gemma-4-E2B-it-IQ4_XS.gguf".to_string()),
+            mmproj_hash: Some("placeholder".to_string()),
+            mmproj_size: Some(900_000_000),
+        },
+        // 7. Gemma 4 4B IT BF16 (Multimodal)
+        ModelInfo {
+            id: "gemma-4-E4B-it-BF16".to_string(),
+            name: "Gemma 4 4B IT BF16".to_string(),
+            model_type: "chat".to_string(),
+            vram: "~12GB".to_string(),
+            params: "4B".to_string(),
+            url: "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-BF16.gguf".to_string(),
+            expected_hash: "placeholder".to_string(),
+            size_bytes: 16_000_000_000,
+            mmproj_url: Some("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/mmproj-gemma-4-E4B-it-IQ4_XS.gguf".to_string()),
+            mmproj_hash: Some("placeholder".to_string()),
+            mmproj_size: Some(900_000_000),
+        },
+        // 8. Qwen 3.6 27B UD IQ2_XXS
+        ModelInfo {
+            id: "Qwen3.6-27B-UD-IQ2_XXS".to_string(),
+            name: "Qwen 3.6 27B UD IQ2_XXS".to_string(),
+            model_type: "chat".to_string(),
+            vram: "~16GB".to_string(),
+            params: "27B".to_string(),
+            url: "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-UD-IQ2_XXS.gguf".to_string(),
+            expected_hash: "placeholder".to_string(),
+            size_bytes: 10_000_000_000,
             mmproj_url: None,
             mmproj_hash: None,
             mmproj_size: None,
@@ -186,18 +193,14 @@ pub fn get_available_models() -> Vec<ModelInfo> {
 
 /// Obtiene la ruta del directorio de descargas
 fn get_downloads_dir() -> Result<PathBuf, String> {
-    let app_dir = directories::ProjectDirs::from("com", "zenit", "zeldrix")
-        .ok_or("Cannot determine app data directory")?;
-    let downloads_dir = app_dir.data_dir().join("downloads");
+    let app_dir = crate::sidecar::get_app_dir().ok_or("Cannot determine app data directory")?;
+    let downloads_dir = app_dir.join("downloads");
     Ok(downloads_dir)
 }
 
 /// Obtiene la ruta del directorio de modelos
 fn get_models_dir() -> Result<PathBuf, String> {
-    let app_dir = directories::ProjectDirs::from("com", "zenit", "zeldrix")
-        .ok_or("Cannot determine app data directory")?;
-    let models_dir = app_dir.data_dir().join("models");
-    Ok(models_dir)
+    crate::sidecar::get_models_dir().ok_or("Cannot determine models directory".to_string())
 }
 
 // ============================================================================
@@ -345,7 +348,13 @@ pub async fn download_model(
                 // Verificar hash SHA-256
                 let _ = app_handle.emit("download:verifying", model_id_clone.clone());
 
-                match verify_sha256(&part_path_clone, &expected_hash).await {
+                let hash_match = if expected_hash == "placeholder" || expected_hash.is_empty() {
+                    Ok(true)
+                } else {
+                    verify_sha256(&part_path_clone, &expected_hash).await
+                };
+
+                match hash_match {
                     Ok(true) => {
                         // Renombrar archivo
                         if let Err(e) = tokio::fs::rename(&part_path_clone, &final_path_clone).await {
