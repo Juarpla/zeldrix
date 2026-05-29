@@ -15,10 +15,15 @@ mod retrieval_engine;
 mod email_parser;
 mod thinking_mode;
 mod structured_extraction;
+mod table_xlsx_exporter;
 
 use email_parser::clean_email_thread;
 use thinking_mode::ai_analyze_thinking_mode;
 use structured_extraction::extract_structured_table_json;
+use table_xlsx_exporter::{
+    ExportStructuredTableXlsxRequest,
+    ExportStructuredTableXlsxResult,
+};
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
@@ -319,6 +324,16 @@ async fn export_document(request: ExportRequest) -> Result<ExportResult, String>
         .map_err(|error| error.to_string())
 }
 
+/// Export an edited structured results table to a local XLSX workbook.
+#[tauri::command]
+async fn export_structured_table_xlsx(
+    request: ExportStructuredTableXlsxRequest,
+) -> Result<ExportStructuredTableXlsxResult, String> {
+    table_xlsx_exporter::export_structured_table_xlsx(request)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<std::path::PathBuf>();
@@ -358,6 +373,7 @@ pub fn run() {
             template_get_by_id,
             merge_template,
             export_document,
+            export_structured_table_xlsx,
             document_version_save,
             document_version_list,
             extract_document_text,

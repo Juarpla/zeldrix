@@ -8,6 +8,7 @@ import type {
   StructuredTableDataType,
   StructuredTableRow,
 } from '@/lib/types';
+import { exportStructuredTableAsXlsx } from '@/lib/export-service';
 import styles from './StructuredResultsTable.module.css';
 
 interface StructuredResultsTableProps {
@@ -159,6 +160,9 @@ export default function StructuredResultsTable({ table }: StructuredResultsTable
   const [rows, setRows] = useState(() => createRows(table));
   const [draggedColumnName, setDraggedColumnName] = useState<string | null>(null);
   const [dragOverColumnName, setDragOverColumnName] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportPath, setExportPath] = useState<string | null>(null);
 
   const totalWarnings = useMemo(() => {
     return rows.reduce((count, row) => {
@@ -209,6 +213,31 @@ export default function StructuredResultsTable({ table }: StructuredResultsTable
     });
   }
 
+  async function downloadExcel() {
+    setIsExporting(true);
+    setExportError(null);
+    setExportPath(null);
+
+    try {
+      const result = await exportStructuredTableAsXlsx({
+        columns,
+        rows: rows.map((row) => row.values),
+        filename: 'zeldrix-ai-table',
+      });
+      setExportPath(result.path);
+    } catch (error) {
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+            ? error
+            : 'No se pudo exportar el Excel.',
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <section className={styles.shell} aria-label="Structured results table">
       <div className={styles.toolbar}>
@@ -218,7 +247,21 @@ export default function StructuredResultsTable({ table }: StructuredResultsTable
             {rows.length} rows · {columns.length} columns · {totalWarnings} validations
           </p>
         </div>
+        <button
+          className={styles.exportButton}
+          type="button"
+          onClick={downloadExcel}
+          disabled={isExporting || rows.length === 0}
+        >
+          {isExporting ? 'Exportando...' : 'Descargar Excel'}
+        </button>
       </div>
+
+      {(exportPath || exportError) && (
+        <div className={exportError ? styles.exportError : styles.exportSuccess}>
+          {exportError ?? `Excel guardado en ${exportPath}`}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className={styles.emptyState}>No rows remain in this result.</div>

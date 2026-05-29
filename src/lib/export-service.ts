@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { StructuredTableColumn } from "@/lib/types";
 
 export type ExportFormat = "pdf" | "docx";
 
@@ -35,5 +36,30 @@ export async function exportDocumentAsPdf(
     html,
     format: "pdf",
     filename,
+  });
+}
+
+export interface StructuredTableXlsxExportRequest {
+  columns: StructuredTableColumn[];
+  rows: Record<string, string>[];
+  filename?: string;
+}
+
+export interface StructuredTableXlsxExportResult {
+  path: string;
+  format: "xlsx";
+}
+
+export async function exportStructuredTableAsXlsx({
+  columns,
+  rows,
+  filename,
+}: StructuredTableXlsxExportRequest): Promise<StructuredTableXlsxExportResult> {
+  return await invoke<StructuredTableXlsxExportResult>("export_structured_table_xlsx", {
+    request: {
+      columns,
+      rows,
+      filename,
+    },
   });
 }
