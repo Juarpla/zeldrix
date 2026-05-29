@@ -1,70 +1,59 @@
 // src-tauri/src/lib.rs
 
-mod sidecar;
-mod hardware;
-mod download_manager;
-mod exporter;
-mod multimodal;
-mod function_calling;
-mod templates_db;
-pub mod merge_engine;
+mod batch_processing;
+mod custom_automation_presets;
 mod document_history;
 mod document_ingestion;
-pub mod vector_db;
-mod retrieval_engine;
+mod download_manager;
 mod email_parser;
-mod thinking_mode;
+mod exporter;
+mod function_calling;
+mod hardware;
+pub mod merge_engine;
+mod multimodal;
+mod retrieval_engine;
+mod sidecar;
 mod structured_extraction;
 mod table_xlsx_exporter;
-mod batch_processing;
+mod templates_db;
+mod thinking_mode;
+pub mod vector_db;
 
-use email_parser::clean_email_thread;
-use thinking_mode::ai_analyze_thinking_mode;
-use structured_extraction::extract_structured_table_json;
-use table_xlsx_exporter::{
-    ExportStructuredTableXlsxRequest,
-    ExportStructuredTableXlsxResult,
-};
 use batch_processing::{
-    enqueue_structured_extraction_batch,
-    get_structured_extraction_batch_queue,
-    start_batch_processing_worker,
-    BatchProcessingState,
+    enqueue_structured_extraction_batch, get_structured_extraction_batch_queue,
+    start_batch_processing_worker, BatchProcessingState,
 };
+use custom_automation_presets::{
+    custom_automation_preset_create, custom_automation_preset_list, custom_automation_preset_run,
+    CustomAutomationPresetDb,
+};
+use email_parser::clean_email_thread;
+use structured_extraction::extract_structured_table_json;
+use table_xlsx_exporter::{ExportStructuredTableXlsxRequest, ExportStructuredTableXlsxResult};
+use thinking_mode::ai_analyze_thinking_mode;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
 
-use sidecar::{RunningSidecar, SidecarState, SidecarStatus};
-use hardware::{HardwareInfo, ModelRecommendation};
-use download_manager::DownloadState;
-use exporter::{ExportRequest, ExportResult};
-use multimodal::MultimodalChatState;
-use templates_db::TemplateDb;
-use templates_db::{template_init, template_list, template_get_by_id};
-use merge_engine::{merge, Variables};
 use document_history::{document_version_list, document_version_save};
 use document_ingestion::{
-    extract_document_text,
-    chunk_extracted_text,
-    get_embeddings,
-    get_monitored_folder,
-    set_monitored_folder,
-    get_sync_status,
-    get_sync_queue,
+    chunk_extracted_text, extract_document_text, get_embeddings, get_monitored_folder,
+    get_sync_queue, get_sync_status, initialize_watcher, set_monitored_folder, start_sync_worker,
     SyncServiceState,
-    start_sync_worker,
-    initialize_watcher,
 };
+use download_manager::DownloadState;
+use exporter::{ExportRequest, ExportResult};
+use hardware::{HardwareInfo, ModelRecommendation};
+use merge_engine::{merge, Variables};
+use multimodal::MultimodalChatState;
+use retrieval_engine::{format_inference_prompt, get_citation_fragment, retrieve_relevant_context};
+use sidecar::{RunningSidecar, SidecarState, SidecarStatus};
+use templates_db::TemplateDb;
+use templates_db::{template_get_by_id, template_init, template_list};
 use vector_db::{
-    vector_db_insert,
-    vector_db_search,
-    vector_db_clear,
-    vector_db_load,
-    VectorDatabase,
+    vector_db_clear, vector_db_insert, vector_db_load, vector_db_search, VectorDatabase,
     VectorDbState,
 };
-use retrieval_engine::{retrieve_relevant_context, format_inference_prompt, get_citation_fragment};
 
 /// Start the llama.cpp sidecar server
 #[tauri::command]
@@ -99,11 +88,16 @@ async fn sidecar_start(
     let port_str = port.to_string();
 
     let mut args = vec![
-        "-m", model_str,
-        "-c", "131072",
-        "-t", &threads_str,
-        "--port", &port_str,
-        "--host", "127.0.0.1",
+        "-m",
+        model_str,
+        "-c",
+        "131072",
+        "-t",
+        &threads_str,
+        "--port",
+        &port_str,
+        "--host",
+        "127.0.0.1",
         "--embedding",
     ];
 
@@ -116,7 +110,9 @@ async fn sidecar_start(
     cmd.args(&args);
 
     // Spawn the process
-    let child = cmd.spawn().map_err(|e| format!("Failed to start llama-server: {}", e))?;
+    let child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start llama-server: {}", e))?;
 
     // Store in state
     {
@@ -136,13 +132,14 @@ async fn sidecar_start(
 
 /// Stop the llama.cpp sidecar server
 #[tauri::command]
-async fn sidecar_stop(
-    state: State<'_, SidecarState>,
-) -> Result<(), String> {
+async fn sidecar_stop(state: State<'_, SidecarState>) -> Result<(), String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
 
     if let Some(mut sidecar) = guard.take() {
-        sidecar.process.kill().map_err(|e| format!("Failed to stop sidecar: {}", e))?;
+        sidecar
+            .process
+            .kill()
+            .map_err(|e| format!("Failed to stop sidecar: {}", e))?;
     }
 
     Ok(())
@@ -150,9 +147,7 @@ async fn sidecar_stop(
 
 /// Check if the sidecar is healthy (responding to /v1/models)
 #[tauri::command]
-async fn sidecar_health(
-    state: State<'_, SidecarState>,
-) -> Result<bool, String> {
+async fn sidecar_health(state: State<'_, SidecarState>) -> Result<bool, String> {
     // Extract port before await to release the lock
     let port = {
         let guard = state.0.lock().map_err(|e| e.to_string())?;
@@ -167,9 +162,7 @@ async fn sidecar_health(
 
 /// Get current sidecar status
 #[tauri::command]
-fn sidecar_status(
-    state: State<'_, SidecarState>,
-) -> Result<SidecarStatus, String> {
+fn sidecar_status(state: State<'_, SidecarState>) -> Result<SidecarStatus, String> {
     let guard = state.0.lock().map_err(|e| e.to_string())?;
 
     match &*guard {
@@ -290,7 +283,10 @@ async fn ai_transform_text(
     if !response.status().is_success() {
         let status = response.status();
         let text_err = response.text().await.unwrap_or_default();
-        return Err(format!("llama-server returned error {}: {}", status, text_err));
+        return Err(format!(
+            "llama-server returned error {}: {}",
+            status, text_err
+        ));
     }
 
     // Parsear respuesta
@@ -305,7 +301,7 @@ async fn ai_transform_text(
         .and_then(|v| v.as_str())
     {
         Ok(content.to_string())
-} else {
+    } else {
         Err("No content in response".to_string())
     }
 }
@@ -405,18 +401,36 @@ pub fn run() {
             extract_structured_table_json,
             enqueue_structured_extraction_batch,
             get_structured_extraction_batch_queue,
+            custom_automation_preset_create,
+            custom_automation_preset_list,
+            custom_automation_preset_run,
         ])
         .setup(|app| {
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {
                 std::env::current_dir().unwrap_or_default()
             });
+            let custom_presets_db_path = local_data_dir.join("custom_automation_presets.sqlite");
+            match custom_automation_presets::open_database(&custom_presets_db_path) {
+                Ok(connection) => {
+                    app.manage(CustomAutomationPresetDb(Mutex::new(connection)));
+                }
+                Err(error) => {
+                    eprintln!("Failed to initialize custom automation presets database: {}", error);
+                    let fallback = rusqlite::Connection::open_in_memory()
+                        .expect("failed to open fallback custom automation presets db");
+                    custom_automation_presets::init_db(&fallback)
+                        .expect("failed to initialize fallback custom automation presets db");
+                    app.manage(CustomAutomationPresetDb(Mutex::new(fallback)));
+                }
+            }
+
             let db_path = local_data_dir.join("vector_db.json");
-            
+
             let mut database = VectorDatabase::new(Some(db_path));
             if let Err(error) = database.load() {
                 eprintln!("Failed to load vector database at startup: {}", error);
             }
-            
+
             app.manage(VectorDbState(std::sync::RwLock::new(database)));
 
             // Start the background sync worker

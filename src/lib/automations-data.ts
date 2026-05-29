@@ -15,14 +15,16 @@ export interface AutomationShortcut {
   id: string;
   title: string;
   description: string;
-  category: "email" | "documents" | "data-extraction" | "meetings";
+  category: "email" | "documents" | "data-extraction" | "meetings" | "custom";
   difficulty: "light" | "medium" | "heavy";
   estimatedSeconds: number;
-  iconName: "email" | "minutes" | "pdf" | "reply";
+  iconName: "email" | "minutes" | "pdf" | "reply" | "translate" | "table" | "briefcase";
   steps: WorkflowStep[];
   inputs: AutomationInputField[];
   mockOutput: string;
   isThinkingMode?: boolean;
+  isCustomPreset?: boolean;
+  outputType?: "text" | "table";
 }
 
 export const AUTOMATIONS_DATA: AutomationShortcut[] = [

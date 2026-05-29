@@ -7,11 +7,15 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { invoke } from "@tauri-apps/api/core";
 import { BatchQueueMonitor, BatchQueueMonitorItem } from "./BatchQueueMonitor";
+import {
+  CustomAutomationRunResult,
+  runCustomAutomationPreset,
+} from "@/lib/custom-automation-presets-service";
 
 interface ResponsibilityItem {
-  tarea: String;
-  responsable: String;
-  fecha_limite: String;
+  tarea: string;
+  responsable: string;
+  fecha_limite: string;
 }
 
 interface ThinkingModeResult {
@@ -66,6 +70,43 @@ function buildSimulatedBatchItems(
   });
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderCustomOutputHtml(output: CustomAutomationRunResult): string {
+  if (output.output_type === "table") {
+    if (/<table[\s>]/i.test(output.content)) {
+      return output.content;
+    }
+
+    const rows = output.content
+      .split("\n")
+      .map((row) => row.trim())
+      .filter(Boolean)
+      .map((row) => row.split(/\s*\|\s*|\t/).filter(Boolean));
+
+    if (rows.length > 1 && rows[0].length > 1) {
+      const [headers, ...bodyRows] = rows;
+      return `<table border="1" cellpadding="6" style="border-collapse: collapse; width: 100%; border: 1px solid #ddd;"><thead><tr>${headers
+        .map((cell) => `<th>${escapeHtml(cell)}</th>`)
+        .join("")}</tr></thead><tbody>${bodyRows
+        .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
+        .join("")}</tbody></table>`;
+    }
+  }
+
+  return escapeHtml(output.content)
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.replaceAll("\n", "<br/>")}</p>`)
+    .join("");
+}
+
 export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: WorkflowExecutionProps) {
   const router = useRouter();
   const [formInputs, setFormInputs] = useState<Record<string, string>>(() => {
@@ -85,6 +126,7 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [customOutput, setCustomOutput] = useState<CustomAutomationRunResult | null>(null);
 
   // Thinking Mode states
   const [thinkingOutput, setThinkingOutput] = useState<ThinkingModeResult | null>(null);
@@ -99,6 +141,54 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
   // Run mock workflow execution or trigger native Thinking Mode command
   const runWorkflow = async () => {
     setErrorMessage(null);
+    setCustomOutput(null);
+    if (shortcut.isCustomPreset) {
+      const inputText = formInputs["customInputText"] || "";
+      const presetId = Number(shortcut.id.replace("custom-", ""));
+
+      if (!inputText.trim()) {
+        setErrorMessage("Pega o arrastra un bloque de texto antes de ejecutar este preset.");
+        return;
+      }
+
+      if (!Number.isFinite(presetId)) {
+        setErrorMessage("No se pudo identificar el preset personalizado.");
+        return;
+      }
+
+      setStatus("running");
+      setCurrentStepIndex(0);
+      setProgressPercent(15);
+
+      try {
+        setCurrentStepIndex(1);
+        setProgressPercent(55);
+        const result = await runCustomAutomationPreset({
+          preset_id: presetId,
+          input_text: inputText,
+        });
+
+        setCurrentStepIndex(2);
+        setProgressPercent(90);
+        setCustomOutput(result);
+
+        setTimeout(() => {
+          setProgressPercent(100);
+          setStatus("completed");
+          if (onCompletedAction) onCompletedAction();
+        }, 400);
+      } catch (err: any) {
+        setErrorMessage(
+          typeof err === "string"
+            ? err
+            : err.message || "Error al ejecutar el preset personalizado.",
+        );
+        setStatus("idle");
+      }
+
+      return;
+    }
+
     if (shortcut.isThinkingMode) {
       setStatus("running");
       setCurrentStepIndex(0);
@@ -178,6 +268,14 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
     setFormInputs((prev) => ({ ...prev, [id]: value }));
   };
 
+  const handleTextDrop = (id: string, event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    const droppedText = event.dataTransfer.getData("text/plain");
+    if (droppedText.trim()) {
+      handleInputChange(id, droppedText);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0].name);
@@ -185,7 +283,9 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
   };
 
   const handleCopy = () => {
-    const rawText = thinkingOutput 
+    const rawText = customOutput
+      ? customOutput.content.replace(/<[^>]*>/g, "")
+      : thinkingOutput
       ? thinkingOutput.full_response.replace(/<[^>]*>/g, "")
       : shortcut.mockOutput.replace(/<[^>]*>/g, "");
     navigator.clipboard.writeText(rawText);
@@ -194,7 +294,11 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
   };
 
   const handleOpenInEditor = () => {
-    const textOutput = thinkingOutput ? thinkingOutput.full_response : shortcut.mockOutput;
+    const textOutput = customOutput
+      ? customOutput.content
+      : thinkingOutput
+      ? thinkingOutput.full_response
+      : shortcut.mockOutput;
     if (typeof window !== "undefined") {
       sessionStorage.setItem("zeldrix_import_editor_text", textOutput);
     }
@@ -215,7 +319,7 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
           Volver al Hub
         </button>
         <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
-          <span>{shortcut.isThinkingMode ? "🧠 Thinking Mode:" : "Automatización Activa:"} {shortcut.title}</span>
+          <span>{shortcut.isThinkingMode ? "Thinking Mode:" : "Automatización Activa:"} {shortcut.title}</span>
         </h2>
       </div>
 
@@ -251,6 +355,8 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                     <textarea
                       value={formInputs[input.id] || ""}
                       onChange={(e) => handleInputChange(input.id, e.target.value)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleTextDrop(input.id, e)}
                       placeholder={input.placeholder}
                       className="w-full min-h-[160px] p-4 rounded-xl border border-gray-250 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all dark:text-gray-100"
                     />
@@ -341,10 +447,16 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
 
             <div className="space-y-3 max-w-md">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                {shortcut.isThinkingMode ? "Analizando en Thinking Mode..." : "Procesando Flujo de Trabajo Pesado..."}
+                {shortcut.isCustomPreset
+                  ? "Ejecutando preset personalizado..."
+                  : shortcut.isThinkingMode
+                  ? "Analizando en Thinking Mode..."
+                  : "Procesando Flujo de Trabajo Pesado..."}
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                La Inteligencia Artificial local está evaluando responsabilidades y trazando la cronología del proyecto.
+                {shortcut.isCustomPreset
+                  ? "La Inteligencia Artificial local está aplicando el prompt base guardado para esta tarjeta."
+                  : "La Inteligencia Artificial local está evaluando responsabilidades y trazando la cronología del proyecto."}
               </p>
             </div>
 
@@ -422,9 +534,13 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                   ✓
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-emerald-900 dark:text-emerald-300">¡Pensamiento Completo y Minuta Estructurada!</h4>
+                  <h4 className="font-extrabold text-emerald-900 dark:text-emerald-300">
+                    {shortcut.isCustomPreset ? "Preset personalizado ejecutado" : "¡Pensamiento Completo y Minuta Estructurada!"}
+                  </h4>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                    Las responsabilidades implícitas fueron extraídas exitosamente.
+                    {shortcut.isCustomPreset
+                      ? "La lógica guardada se aplicó al bloque de texto de entrada."
+                      : "Las responsabilidades implícitas fueron extraídas exitosamente."}
                   </p>
                 </div>
               </div>
@@ -513,7 +629,14 @@ export function WorkflowExecution({ shortcut, onBack, onCompletedAction }: Workf
                 </div>
               </div>
 
-              {thinkingOutput ? (
+              {customOutput ? (
+                <div className="p-6 overflow-auto max-h-[450px]">
+                  <div
+                    className="prose dark:prose-invert max-w-none text-sm text-gray-800 dark:text-gray-200 leading-relaxed font-sans"
+                    dangerouslySetInnerHTML={{ __html: renderCustomOutputHtml(customOutput) }}
+                  />
+                </div>
+              ) : thinkingOutput ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Agreements list card */}
                   <div className="bg-white dark:bg-gray-900 border border-gray-150 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-4 hover:border-blue-400/40 transition-colors">
