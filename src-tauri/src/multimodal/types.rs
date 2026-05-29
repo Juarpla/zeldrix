@@ -8,16 +8,28 @@ use serde::{Deserialize, Serialize};
 // Tipos para contenido multimodal (frontend -> backend)
 // ============================================================================
 
+/// Wrapper for the nested image_url object from the frontend
+#[derive(Clone, Debug, Deserialize)]
+pub struct ImageUrlData {
+    pub url: String,
+}
+
+/// Wrapper for the nested audio_url object from the frontend
+#[derive(Clone, Debug, Deserialize)]
+pub struct AudioUrlData {
+    pub url: String,
+}
+
 /// Parte de contenido de un mensaje multimodal
 #[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type", content = "data")]
+#[serde(tag = "type")]
 pub enum ContentPart {
     #[serde(rename = "text")]
     Text { text: String },
     #[serde(rename = "image_url")]
-    ImageUrl { url: String },
+    ImageUrl { image_url: ImageUrlData },
     #[serde(rename = "audio_url")]
-    AudioUrl { url: String },
+    AudioUrl { audio_url: AudioUrlData },
 }
 
 /// Mensaje multimodal del frontend
@@ -96,15 +108,15 @@ impl ContentPart {
             ContentPart::Text { text } => OpenAIContentPart::Text {
                 text: text.clone(),
             },
-            ContentPart::ImageUrl { url } => OpenAIContentPart::ImageUrl {
+            ContentPart::ImageUrl { image_url } => OpenAIContentPart::ImageUrl {
                 image_url: ImageUrlContent {
-                    url: url.clone(),
+                    url: image_url.url.clone(),
                     detail: Some("auto".to_string()),
                 },
             },
-            ContentPart::AudioUrl { url } => OpenAIContentPart::AudioUrl {
+            ContentPart::AudioUrl { audio_url } => OpenAIContentPart::AudioUrl {
                 audio_url: AudioUrlContent {
-                    url: url.clone(),
+                    url: audio_url.url.clone(),
                 },
             },
         }
