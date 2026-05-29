@@ -375,6 +375,7 @@ pub fn run() {
             multimodal::chat_complete_multimodal,
             multimodal::encode_image_base64,
             multimodal::encode_audio_base64,
+            multimodal::transcribe_audio_local,
             multimodal::process_ocr_local,
             ai_transform_text,
             template_init,

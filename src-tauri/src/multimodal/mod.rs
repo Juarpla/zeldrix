@@ -7,16 +7,15 @@ pub mod types;
 pub use types::*; // Re-export all types for convenience
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
-use crate::sidecar::{SidecarState, health};
 use crate::function_calling::{
-    get_all_tools, get_system_message_with_tools,
-    execute_tool_call, extract_tool_calls, extract_content,
-    has_tool_calls, MAX_TOOL_CALL_ITERATIONS,
+    execute_tool_call, extract_content, extract_tool_calls, get_all_tools,
+    get_system_message_with_tools, has_tool_calls, MAX_TOOL_CALL_ITERATIONS,
 };
+use crate::sidecar::{health, SidecarState};
 
 /// Estado del chat multimodal
 pub struct MultimodalChatState(pub Mutex<Option<MultimodalSession>>);
@@ -25,6 +24,10 @@ pub struct MultimodalChatState(pub Mutex<Option<MultimodalSession>>);
 pub struct MultimodalSession {
     pub messages: Vec<types::MultimodalMessage>,
 }
+
+const LOCAL_MODEL_ID: &str = "gemma-4-E2B-it";
+const TRANSCRIPTION_SYSTEM_PROMPT: &str = "You are a local automatic speech recognition engine specialized in Spanish executive dictations and meeting recordings. Transcribe the provided audio faithfully in Spanish. Return only the transcript text. Do not summarize, translate, add timestamps, or add explanations.";
+const TRANSCRIPTION_USER_PROMPT: &str = "Transcribe this audio recording faithfully in Spanish.";
 
 // ============================================================================
 // Comandos Tauri
@@ -54,10 +57,8 @@ pub async fn chat_complete_multimodal(
     }
 
     // Convertir mensajes al formato OpenAI
-    let mut oai_messages: Vec<types::OpenAIMessage> = messages
-        .into_iter()
-        .map(|m| m.to_openai())
-        .collect();
+    let mut oai_messages: Vec<types::OpenAIMessage> =
+        messages.into_iter().map(|m| m.to_openai()).collect();
 
     // Añadir system message con instrucciones de tools si web_search está habilitado
     let web_search_enabled = enable_web_search.unwrap_or(false);
@@ -140,7 +141,11 @@ pub async fn chat_complete_multimodal(
             let assistant_content = response_json
                 .pointer("/choices/0/message/content")
                 .and_then(|v| v.as_str())
-                .map(|s| vec![types::OpenAIContentPart::Text { text: s.to_string() }]);
+                .map(|s| {
+                    vec![types::OpenAIContentPart::Text {
+                        text: s.to_string(),
+                    }]
+                });
 
             // Añadir el mensaje del asistente a la conversación
             oai_messages.push(types::OpenAIMessage {
@@ -157,9 +162,19 @@ pub async fn chat_complete_multimodal(
                         // Añadir mensaje de tool result
                         let tool_msg = types::OpenAIMessage {
                             role: "tool".to_string(),
-                            content: tool_result.get("content").and_then(|v| v.as_str()).map(|s| vec![types::OpenAIContentPart::Text { text: s.to_string() }]),
+                            content: tool_result
+                                .get("content")
+                                .and_then(|v| v.as_str())
+                                .map(|s| {
+                                    vec![types::OpenAIContentPart::Text {
+                                        text: s.to_string(),
+                                    }]
+                                }),
                             tool_calls: None,
-                            tool_call_id: tool_result.get("tool_call_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                            tool_call_id: tool_result
+                                .get("tool_call_id")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string()),
                         };
                         oai_messages.push(tool_msg);
                     }
@@ -222,6 +237,139 @@ pub fn encode_image_base64(path: String) -> Result<String, String> {
     let data_url = format!("data:{};base64,{}", mime_type, base64_data);
 
     Ok(data_url)
+}
+
+/// Transcribes a local audio file through the local llama.cpp multimodal server.
+#[tauri::command]
+pub async fn transcribe_audio_local(
+    sidecar_state: State<'_, SidecarState>,
+    audio_path: String,
+) -> Result<String, String> {
+    let port = {
+        let guard = sidecar_state.0.lock().map_err(|e| e.to_string())?;
+        match guard.as_ref() {
+            Some(sidecar) => sidecar.port,
+            None => return Err("Sidecar not running. Start it first.".to_string()),
+        }
+    };
+
+    if !health::check_health(port).await {
+        return Err(format!("Sidecar not responding on port {}", port));
+    }
+
+    transcribe_audio_file(port, PathBuf::from(audio_path)).await
+}
+
+async fn transcribe_audio_file(port: u16, audio_path: PathBuf) -> Result<String, String> {
+    let audio_data_url = encode_audio_file_as_data_url(&audio_path)?;
+    let messages = build_transcription_messages(audio_data_url);
+
+    #[derive(serde::Serialize)]
+    struct ChatRequest<'a> {
+        model: &'a str,
+        messages: &'a [types::OpenAIMessage],
+        stream: bool,
+    }
+
+    let request_body = ChatRequest {
+        model: LOCAL_MODEL_ID,
+        messages: &messages,
+        stream: false,
+    };
+
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{}/v1/chat/completions", port);
+    let response = client
+        .post(&url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Request to local llama-server failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("llama-server returned error {}: {}", status, text));
+    }
+
+    let response_json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse transcription response: {}", e))?;
+
+    extract_chat_completion_content(&response_json)
+        .map(str::trim)
+        .filter(|content| !content.is_empty())
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| "No transcript returned from local ASR process".to_string())
+}
+
+fn build_transcription_messages(audio_data_url: String) -> Vec<types::OpenAIMessage> {
+    vec![
+        types::OpenAIMessage {
+            role: "system".to_string(),
+            content: Some(vec![types::OpenAIContentPart::Text {
+                text: TRANSCRIPTION_SYSTEM_PROMPT.to_string(),
+            }]),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+        types::OpenAIMessage {
+            role: "user".to_string(),
+            content: Some(vec![
+                types::OpenAIContentPart::Text {
+                    text: TRANSCRIPTION_USER_PROMPT.to_string(),
+                },
+                types::OpenAIContentPart::AudioUrl {
+                    audio_url: types::AudioUrlContent {
+                        url: audio_data_url,
+                    },
+                },
+            ]),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+    ]
+}
+
+fn encode_audio_file_as_data_url(path: &Path) -> Result<String, String> {
+    if !path.exists() {
+        return Err(format!("File not found: {}", path.display()));
+    }
+
+    if !path.is_file() {
+        return Err(format!("Audio path is not a file: {}", path.display()));
+    }
+
+    let mime_type = supported_audio_mime_type(path)?;
+    let bytes = std::fs::read(path).map_err(|e| format!("Failed to read audio file: {}", e))?;
+    let base64_data = BASE64_STANDARD.encode(&bytes);
+
+    Ok(format!("data:{};base64,{}", mime_type, base64_data))
+}
+
+fn supported_audio_mime_type(path: &Path) -> Result<&'static str, String> {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("wav") => Ok("audio/wav"),
+        Some("mp3") => Ok("audio/mpeg"),
+        Some("ogg") => Ok("audio/ogg"),
+        Some("flac") => Ok("audio/flac"),
+        Some("m4a") => Ok("audio/mp4"),
+        Some("aac") => Ok("audio/aac"),
+        Some(extension) => Err(format!("Unsupported audio format: .{}", extension)),
+        None => Err("Audio file must have a supported extension".to_string()),
+    }
+}
+
+fn extract_chat_completion_content(response_json: &serde_json::Value) -> Option<&str> {
+    response_json
+        .pointer("/choices/0/message/content")
+        .and_then(|value| value.as_str())
 }
 
 /// Codifica un archivo de audio a base64 para uso en prompts multimodales
@@ -348,4 +496,41 @@ pub async fn process_ocr_local(
     }
 
     Err("No content returned from OCR process".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supported_audio_mime_type_should_accept_wav() {
+        let mime_type = supported_audio_mime_type(Path::new("meeting.WAV"));
+
+        assert_eq!(mime_type, Ok("audio/wav"));
+    }
+
+    #[test]
+    fn supported_audio_mime_type_should_reject_unsupported_extension() {
+        let error = supported_audio_mime_type(Path::new("meeting.txt")).unwrap_err();
+
+        assert!(error.contains("Unsupported audio format"));
+    }
+
+    #[test]
+    fn extract_chat_completion_content_should_return_assistant_content() {
+        let response = serde_json::json!({
+            "choices": [
+                {
+                    "message": {
+                        "content": "Esta es la transcripcion."
+                    }
+                }
+            ]
+        });
+
+        assert_eq!(
+            extract_chat_completion_content(&response),
+            Some("Esta es la transcripcion.")
+        );
+    }
 }

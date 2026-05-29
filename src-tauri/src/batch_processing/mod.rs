@@ -120,7 +120,7 @@ pub fn start_batch_processing_worker(
     app_handle: AppHandle,
     mut rx: UnboundedReceiver<BatchWorkItem>,
 ) {
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         while let Some(work_item) = rx.recv().await {
             mark_item_processing(&app_handle, &work_item.id);
 

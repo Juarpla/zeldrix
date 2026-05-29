@@ -164,7 +164,7 @@ pub fn start_sync_worker(
     app_handle: AppHandle,
     mut rx: tokio::sync::mpsc::UnboundedReceiver<PathBuf>,
 ) {
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         println!("BackgroundSync: Starting worker thread...");
         while let Some(path) = rx.recv().await {
             // Give the OS or user-process a very brief window to finalize writing the file
