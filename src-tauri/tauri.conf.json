@@ -12,9 +12,22 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "zeldrix",
         "width": 800,
         "height": 600
+      },
+      {
+        "label": "spotlight",
+        "title": "Spotlight",
+        "url": "/spotlight",
+        "width": 640,
+        "height": 340,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {

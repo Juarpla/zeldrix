@@ -337,6 +337,36 @@ async fn export_structured_table_xlsx(
         .map_err(|error| error.to_string())
 }
 
+/// Toggle the visibility of the spotlight window
+#[tauri::command]
+fn toggle_spotlight(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("spotlight") {
+        if window.is_visible().unwrap_or(false) {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+        }
+    } else {
+        return Err("Spotlight window not initialized".to_string());
+    }
+    Ok(())
+}
+
+/// Toggle the visibility of the main window
+#[tauri::command]
+fn toggle_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            window.hide().map_err(|e| e.to_string())?;
+        } else {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<std::path::PathBuf>();
@@ -404,8 +434,31 @@ pub fn run() {
             custom_automation_preset_create,
             custom_automation_preset_list,
             custom_automation_preset_run,
+            toggle_spotlight,
+            toggle_main_window,
         ])
         .setup(|app| {
+            // Configure spotlight window (defined in tauri.conf.json)
+            if let Some(spotlight_window) = app.get_webview_window("spotlight") {
+                // Hide spotlight when it loses focus (Raycast / Spotlight style)
+                let spotlight_window_clone = spotlight_window.clone();
+                spotlight_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(false) = event {
+                        let _ = spotlight_window_clone.hide();
+                    }
+                });
+            }
+
+            // Intercept main window close requests to hide it instead of closing the app
+            if let Some(main_window) = app.get_webview_window("main") {
+                let main_window_clone = main_window.clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = main_window_clone.hide();
+                    }
+                });
+            }
             let local_data_dir = app.path().app_local_data_dir().unwrap_or_else(|_| {
                 std::env::current_dir().unwrap_or_default()
             });
