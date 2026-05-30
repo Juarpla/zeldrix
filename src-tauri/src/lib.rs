@@ -197,6 +197,22 @@ fn model_recommendation() -> ModelRecommendation {
     hardware::recommend_model(&info)
 }
 
+#[tauri::command]
+fn read_clipboard_text() -> Result<String, String> {
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|error| format!("Failed to access clipboard: {}", error))?;
+    let text = clipboard
+        .get_text()
+        .map_err(|error| format!("Clipboard does not contain readable text: {}", error))?;
+    let trimmed_text = text.trim().to_string();
+
+    if trimmed_text.is_empty() {
+        return Err("Clipboard text is empty".to_string());
+    }
+
+    Ok(trimmed_text)
+}
+
 /// Transform text using AI based on the specified action
 #[tauri::command]
 async fn ai_transform_text(
@@ -410,6 +426,7 @@ pub fn run() {
             sidecar_status,
             hardware_info,
             model_recommendation,
+            read_clipboard_text,
             download_manager::list_models,
             download_manager::download_model,
             download_manager::cancel_download,

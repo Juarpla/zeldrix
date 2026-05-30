@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -23,6 +24,7 @@ export default function SpotlightPage() {
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [streamedAnswer, setStreamedAnswer] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const streamTimerRef = useRef<number | null>(null);
 
@@ -70,22 +72,20 @@ export default function SpotlightPage() {
     streamTimerRef.current = null;
   }
 
-  function handleQuickReplySubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function isClipboardTranslationRequest(query: string) {
+    const normalizedQuery = query
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
 
-    const query = quickReplyText.trim();
+    return (
+      normalizedQuery === "traduce esto" ||
+      normalizedQuery === "traducir esto" ||
+      normalizedQuery === "translate this"
+    );
+  }
 
-    if (!query) {
-      return;
-    }
-
-    stopCurrentStream();
-    setSubmittedQuery(query);
-    setQuickReplyText("");
-    setStreamedAnswer("");
-    setIsStreaming(true);
-    inputRef.current?.focus();
-
+  function startMockStream() {
     let nextSegmentIndex = 0;
 
     streamTimerRef.current = window.setInterval(() => {
@@ -101,6 +101,59 @@ export default function SpotlightPage() {
         return nextAnswer;
       });
     }, 95);
+  }
+
+  async function handleClipboardTranslationRequest() {
+    const clipboardText = await invoke<string>("read_clipboard_text");
+    const translation = await invoke<string>("ai_transform_text", {
+      action: "translate",
+      text: clipboardText,
+    });
+
+    setStreamedAnswer(translation);
+  }
+
+  function getUserFacingErrorMessage(error: unknown) {
+    if (typeof error === "string") {
+      return error;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return "No se pudo leer o traducir el portapapeles.";
+  }
+
+  async function handleQuickReplySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const query = quickReplyText.trim();
+
+    if (!query) {
+      return;
+    }
+
+    stopCurrentStream();
+    setSubmittedQuery(query);
+    setQuickReplyText("");
+    setStreamedAnswer("");
+    setErrorMessage("");
+    setIsStreaming(true);
+    inputRef.current?.focus();
+
+    if (!isClipboardTranslationRequest(query)) {
+      startMockStream();
+      return;
+    }
+
+    try {
+      await handleClipboardTranslationRequest();
+    } catch (error) {
+      setErrorMessage(getUserFacingErrorMessage(error));
+    } finally {
+      setIsStreaming(false);
+    }
   }
 
   return (
@@ -161,9 +214,13 @@ export default function SpotlightPage() {
                 </p>
                 <p
                   aria-live="polite"
-                  className="min-h-14 text-[0.98rem] leading-7 text-slate-800 dark:text-zinc-200"
+                  className={`min-h-14 text-[0.98rem] leading-7 ${
+                    errorMessage
+                      ? "text-red-600 dark:text-red-300"
+                      : "text-slate-800 dark:text-zinc-200"
+                  }`}
                 >
-                  {streamedAnswer}
+                  {errorMessage || streamedAnswer}
                   {isStreaming && (
                     <motion.span
                       aria-hidden="true"
